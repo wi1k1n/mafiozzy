@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="yeeey">
+    <meta name="author" content="ilyko96">
+    <title>Mafiozzy - Game Master</title>
+    <!-- Bootstrap core CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Page Content -->
+<div class="container">
+    <div class="row justify-content-center hidden" id="lobbyContainer">
+        <div class="col-lg-12 pt-5 text-center">
+            <button class="btn btn-primary" id="btnCreateRoom">Create room</button>
+        </div>
+    </div>
+    <div class="row justify-content-center hidden" id="gameContainer">
+        <div class="col-lg-12 pt-5 text-center">
+            <p>Hey there!</p>
+        </div>
+    </div>
+</div>
+<footer class="page-footer fixed-bottom pb-3 hidden" id="debugContainer">
+    <div class="container">
+        <h5 class="text-uppercase">Debug</h5>
+        <span class="text-muted">debug content</span>
+    </div>
+</footer>
+
+<!-- Bootstrap core JavaScript -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+<script>
+    $(document).ready(function() {
+        var DEBUG = true;
+        var ID_LENGTH = 5;
+        var roomID = window.location.hash.length ? window.location.hash.substring(1) : null;
+        var gameStatus = 'idle';
+        var userID = null;
+
+        if (DEBUG)  $('#debugContainer').removeClass('hidden');
+
+        joinRoom();
+
+        // [Create room] button clicked
+        $('#btnCreateRoom').on('click', function(evt) {
+            // Generate random identifier for new room
+            roomID               = '';
+            let characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let charactersLength = characters.length;
+            for (let i = 0; i < ID_LENGTH; i++ ) {
+                roomID += characters.charAt(Math.floor(Math.random() * charactersLength));
+            }
+            let l = window.location;
+            window.open(l.origin + l.pathname + l.search + '#' + roomID, '_self');
+            joinRoom();
+        });
+
+        function joinRoom() {
+            if (!roomID) {
+                $('#lobbyContainer').removeClass('hidden');
+                $('#gameContainer').addClass('hidden');
+                return;
+            }
+
+            // Hide create room button
+            $('#lobbyContainer').addClass('hidden');
+            $('#gameContainer').removeClass('hidden');
+
+            let ws = new WebSocket('ws://localhost:6001');
+            ws.onopen = function(evt) {
+                console.log("[ws] Connection with server established");
+                if (!userID) {
+                    // Request userID
+                    sendJSON({cmd: 'id'});
+                } else {
+                    // If userID is already saved, request room creation
+                    gameStatus = 'room_requested';
+                    sendJSON({cmd: 'cr', uid: userID, rid: roomID});
+                }
+            };
+            ws.onmessage = onMessage;
+            ws.onclose = function(evt) {
+                if (evt.wasClean) {
+                    console.log(`[ws] Connection closed cleanly, code=${evt.code} reason=${evt.reason}`);
+                } else {
+                    // e.g. server process killed or network down; event.code is usually 1006 in this case
+                    console.log('[ws] Connection died');
+                }
+            };
+            ws.onerror = function(evt) {
+                console.log(`[ws] Error: ${evt.message}`);
+            };
+
+            function onMessage(evt) {
+                if (DEBUG) console.log('[dbg] '+evt.data);
+                let msg = null;
+                try {
+                    msg = JSON.parse(evt.data);
+                } catch (e) {
+                    return console.warn('Could not parse server response: ' + evt.data);
+                }
+                // Server response must contain 'cmd' field
+                if (!msg.hasOwnProperty('cmd') || !msg.hasOwnProperty('code'))
+                    return console.warn('Invalid server response: ' + evt.data);
+
+                let cmd = msg.cmd;
+                let code = msg.code;
+                if ('id' === cmd) {
+                    // Response after 'userID request'
+                    // Requesting room creation
+                    if (code !== 10 || !msg.hasOwnProperty('uid'))
+                        return serverErrorReturn(msg);
+                    userID = msg.uid;
+                    sendJSON({cmd: 'cr', uid: userID, rid: roomID});
+                } else if ('cr' === cmd) {
+                    // Response after 'create room' request
+                    // Requesting to join room
+                    if (code === 22) {
+                        // this roomID already exists
+                        return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
+                    } else if (code !== 20)
+                        return serverErrorReturn(msg);
+                    console.log('create room succeeded');
+                    return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
+                } else if ('jn' === cmd) {
+                    // Response after 'join room' request
+                    // Requesting player list
+                    if (code === 43) {
+                        // this userID already in this room
+                        return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
+                    } else if (code === 44) {
+                        // the room is locked
+                        return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
+                    } else if (code !== 40)
+                        return serverErrorReturn(msg);
+                    console.log('join room succeeded');
+                    return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
+                } else if ('ls' === cmd) {
+                    // Response after 'list users' request
+                    if (code !== 30 || !msg.hasOwnProperty('data'))
+                        return serverErrorReturn(msg);
+                    return console.log('List of players: ' + JSON.stringify(msg.data));
+                }
+                //console.log(`[ws] Received: ${evt.data}`);
+            }
+
+            function sendJSON(json) {
+                json['timestamp'] = new Date().getTime();
+                ws.send(JSON.stringify(json));
+            }
+            function serverErrorReturn(msg) {
+                if (!msg.hasOwnProperty('code')) {
+                    console.warn('This event should not have happened! Something\'s wrong!');
+                    return;
+                }
+                console.log('Server error: #' + msg.code + (msg.hasOwnProperty('msg') ? (': '+msg.msg) : ''));
+            }
+        }
+    });
+</script>
+</body>
+</html>
