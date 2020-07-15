@@ -15,6 +15,7 @@ wss.on('listening', function listening() {
 wss.on('connection', function connection(ws, rq) {
     // Client => Server requests:
     // id: => request user id
+    // nm: => set user name
     // cr:userID:roomID => create room
     // jn:userID:roomID => join room
     // ls:userID => list of players
@@ -23,6 +24,14 @@ wss.on('connection', function connection(ws, rq) {
     // er:erCode:erMsg => error
     // id: => responds with user id
     // cr:responseID[:responseMsg]
+    //
+    // Returning codes:
+    // err: 00-09
+    // id: 10-19
+    // cr: 20-29
+    // ls: 30-39
+    // jn: 40-49
+    // nm: 50-59
     let connectionID = getConnectionHash (rq.headers);
     ws.on('message', function incoming(msgRaw) {
         let msg = null;
@@ -40,7 +49,7 @@ wss.on('connection', function connection(ws, rq) {
         // User requested id
         if ('id' === cmd) {
             if (!users.hasOwnProperty(connectionID))
-                users[connectionID] = {};
+                users[connectionID] = new User(connectionID);
             return sendJSON({cmd: 'id', code: 10, uid: connectionID});
         }
 
@@ -51,6 +60,17 @@ wss.on('connection', function connection(ws, rq) {
         // Return error if userID is not specified
         if (!userID || !users.hasOwnProperty(userID))
             return sendJSON({cmd: 'err', code: 1, msg: 'UserID is not found. User "id" command to get your userID.'});
+
+        // User set his name
+        if ('nm' === cmd) {
+            if (!msg.hasOwnProperty('name'))
+                return sendJSON({cmd: 'nm', code: 51, msg: 'Name field is not specified'});
+            if (users[userID].name === msg.name)
+                return sendJSON({cmd: 'nm', code: 52, msg: 'Your current name is already the same'});
+
+        }
+
+        // Check received roomID
         let roomID = null;
         if (msg.hasOwnProperty('rid'))
             roomID = msg.rid;
@@ -71,10 +91,7 @@ wss.on('connection', function connection(ws, rq) {
                     code: 22,
                     msg: 'This roomID is already in use. Use "jn:" command to request to join'
                 });
-            rooms[roomID] = {
-                'users': [],
-                'locked': false
-            };
+            rooms[roomID] = new Room(roomID, [], userID);
             return sendJSON({cmd: 'cr', code: 20});
         } else if ('jn' === cmd) {
             // Join room request
@@ -85,13 +102,14 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'jn', code: 41, msg: 'Invalid RoomID'});
             if (!rooms.hasOwnProperty(roomID))
                 return sendJSON({cmd: 'jn', code: 42, msg: 'No room found'});
-            if (rooms[roomID].users.some(uid => uid === userID))
+            if (rooms[roomID].uids.some(uid => uid === userID))
                 return sendJSON({cmd: 'jn', code: 43, msg: 'Already in room'});
             if (rooms[roomID].locked)
                 return sendJSON({cmd: 'jn', code: 44, msg: 'This room is locked ATM'});
             users[userID].room = roomID;
             users[userID].team = 'spec';
-            rooms[roomID].users.push(userID);
+            rooms[roomID].uids.push(userID);
+            console.log('[TODO] Disconnect every other connection except this one');
             return sendJSON({cmd: 'jn', code: 40});
         } else if ('ls' === cmd) {
             // List of players requested
@@ -100,9 +118,10 @@ wss.on('connection', function connection(ws, rq) {
             let obj = {
                 spec: [],
                 player: [],
+                host: rooms[roomID].host,
                 playerInfo: {}
             };
-            rooms[roomID]['users'].forEach(function(uid) {
+            rooms[roomID].uids.forEach(function(uid) {
                 obj[users[uid].team].push(uid);
                 obj.playerInfo[uid] = {name: ''};
             });
@@ -113,6 +132,21 @@ wss.on('connection', function connection(ws, rq) {
     function sendJSON(json) {
         json['timestamp'] = new Date().getTime();
         ws.send(JSON.stringify(json));
+    }
+
+    function Room(rid, uids, host, locked) {
+        if (!rid) console.warn('Invalid roomID! Something goes wrong!');
+        this.roomID = rid;
+        this.uids = uids ? uids : [];
+        this.host = host ? host : null;
+        this.locked = locked ? locked : false;
+    }
+    function User(uid, name, rooms, team) {
+        if (!uid) console.warn('Invalid userID! Something goes wrong!');
+        this.uid = uid;
+        this.name = name ? name.toString() : '';
+        this.rooms = rooms ? rooms : [];
+        this.team = team ? team : 'spec';
     }
 });
 

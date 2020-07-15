@@ -18,17 +18,21 @@
 
 <!-- Page Content -->
 <div class="container">
+    <!-- Lobby container -->
     <div class="row justify-content-center hidden" id="lobbyContainer">
         <div class="col-lg-12 pt-5 text-center">
             <button class="btn btn-primary" id="btnCreateRoom">Create room</button>
         </div>
     </div>
+    <!-- Game room container -->
     <div class="row justify-content-center hidden" id="gameContainer">
         <div class="col-lg-12 pt-5 text-center">
-            <p>Hey there!</p>
+            <p>Spectators: <span id="spectators"></span></p>
         </div>
     </div>
 </div>
+
+<!-- Debugger panel -->
 <footer class="page-footer fixed-bottom pb-3 hidden" id="debugContainer">
     <div class="container">
         <h5 class="text-uppercase">Debug</h5>
@@ -149,6 +153,11 @@
                     // Response after 'list users' request
                     if (code !== 30 || !msg.hasOwnProperty('data'))
                         return serverErrorReturn(msg);
+                    let specs = '';
+                    msg.data.spec.forEach(function(u) {
+                        specs += u + ', ';
+                    });
+                    $('#spectators').text(specs);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
                 }
                 //console.log(`[ws] Received: ${evt.data}`);
