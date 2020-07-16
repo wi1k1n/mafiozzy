@@ -45,25 +45,32 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 <script>
     $(document).ready(function() {
-        var DEBUG = true;
-        var ID_LENGTH = 5;
-        var roomID = window.location.hash.length ? window.location.hash.substring(1) : null;
-        var gameStatus = 'idle';
-        var userID = null;
+        let DEBUG = true;
+        let RID_LENGTH = 5;
+        let BIID_LENGTH = 4;
 
-        if (DEBUG)  $('#debugContainer').removeClass('hidden');
+        // Generate browser instance ID
+        let biID = '';
+        if (localStorage.hasOwnProperty('biid'))
+            biID = localStorage.getItem('biid');
+        else {
+            biID = computeBIID();
+            localStorage.setItem('biid', biID);
+        }
+        let roomID = window.location.hash.length ? window.location.hash.substring(1) : null;
+        let gameStatus = 'idle';
+        let userID = localStorage.hasOwnProperty('uid') ? localStorage.getItem('uid') : null;
+        let userName = localStorage.hasOwnProperty('name') ? localStorage.getItem('name') : '';
+        let connected = false; // needed for determining if
+
+        if (DEBUG) $('#debugContainer').removeClass('hidden');
 
         joinRoom();
 
         // [Create room] button clicked
         $('#btnCreateRoom').on('click', function(evt) {
             // Generate random identifier for new room
-            roomID               = '';
-            let characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let charactersLength = characters.length;
-            for (let i = 0; i < ID_LENGTH; i++ ) {
-                roomID += characters.charAt(Math.floor(Math.random() * charactersLength));
-            }
+            roomID = computeRID();
             let l = window.location;
             window.open(l.origin + l.pathname + l.search + '#' + roomID, '_self');
             joinRoom();
@@ -80,8 +87,9 @@
             $('#lobbyContainer').addClass('hidden');
             $('#gameContainer').removeClass('hidden');
 
-            let ws = new WebSocket('ws://localhost:6001');
+            let ws = new WebSocket('ws://localhost:6001', biID);
             ws.onopen = function(evt) {
+                connected = true;
                 console.log("[ws] Connection with server established");
                 if (!userID) {
                     // Request userID
@@ -99,14 +107,17 @@
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
                     console.log('[ws] Connection died');
+                    if (!connected)
+                        alert('Could not connect to server!');
                 }
+                connected = false;
             };
             ws.onerror = function(evt) {
                 console.log(`[ws] Error: ${evt.message}`);
             };
 
             function onMessage(evt) {
-                if (DEBUG) console.log('[dbg] '+evt.data);
+                if (DEBUG) console.log('[dbg] << '+evt.data);
                 let msg = null;
                 try {
                     msg = JSON.parse(evt.data);
@@ -123,57 +134,94 @@
                     // Response after 'userID request'
                     // Requesting room creation
                     if (code !== 10 || !msg.hasOwnProperty('uid'))
-                        return serverErrorReturn(msg);
+                        return serverErrReturnedHandler(msg);
                     userID = msg.uid;
+                    localStorage.setItem('uid', userID);
+                    askRequestUserName(true);
                     sendJSON({cmd: 'cr', uid: userID, rid: roomID});
+                } else if ('nm' === cmd) {
+                    if (code !== 50) {
+                        userName = '';
+                        return serverErrReturnedHandler(msg);
+                    }
+                    localStorage.setItem('name', userName);
                 } else if ('cr' === cmd) {
                     // Response after 'create room' request
                     // Requesting to join room
-                    if (code === 22) {
+                    if (code === 21) {
                         // this roomID already exists
                         return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
                     } else if (code !== 20)
-                        return serverErrorReturn(msg);
+                        return serverErrReturnedHandler(msg);
                     console.log('create room succeeded');
                     return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
                 } else if ('jn' === cmd) {
                     // Response after 'join room' request
                     // Requesting player list
-                    if (code === 43) {
+                    if (code === 42) {
                         // this userID already in this room
                         return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
-                    } else if (code === 44) {
+                    } else if (code === 43) {
                         // the room is locked
                         return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                     } else if (code !== 40)
-                        return serverErrorReturn(msg);
+                        return serverErrReturnedHandler(msg);
                     console.log('join room succeeded');
                     return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
                 } else if ('ls' === cmd) {
                     // Response after 'list users' request
                     if (code !== 30 || !msg.hasOwnProperty('data'))
-                        return serverErrorReturn(msg);
+                        return serverErrReturnedHandler(msg);
                     let specs = '';
-                    msg.data.spec.forEach(function(u) {
-                        specs += u + ', ';
+                    msg.data.players.forEach(function (u) {
+                        specs += (u.hasOwnProperty('name') && u.name ? u.name : u.uid) + ', ';
                     });
-                    $('#spectators').text(specs);
+                    $('#spectators').text(specs.substring(0, specs.length - 2));
                     return console.log('List of players: ' + JSON.stringify(msg.data));
+                } else if ('err' === cmd) {
+                    if (code === 1) {
+                        // Server does not know our userID. Request new one
+                        localStorage.removeItem('uid');
+                        sendJSON({cmd: 'id'});
+                    }
                 }
                 //console.log(`[ws] Received: ${evt.data}`);
             }
 
+            function askRequestUserName(checkIfNeeded) {
+                let name = userName;
+                if (!checkIfNeeded || !userName) name = prompt('Enter your nickname:', userName);
+                sendJSON({cmd: 'nm', uid: userID, name: name});
+                userName = name;
+            }
             function sendJSON(json) {
                 json['timestamp'] = new Date().getTime();
+                if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(json));
                 ws.send(JSON.stringify(json));
             }
-            function serverErrorReturn(msg) {
+            function serverErrReturnedHandler(msg) {
                 if (!msg.hasOwnProperty('code')) {
                     console.warn('This event should not have happened! Something\'s wrong!');
                     return;
                 }
                 console.log('Server error: #' + msg.code + (msg.hasOwnProperty('msg') ? (': '+msg.msg) : ''));
             }
+        }
+
+        function computeBIID() {
+            return generateRandomSequence(BIID_LENGTH);
+        }
+        function computeRID() {
+            return generateRandomSequence(RID_LENGTH);
+        }
+        function generateRandomSequence(length) {
+            // Generate random identifier for new room
+            let ret = '';
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let charactersLength = characters.length;
+            for (let i = 0; i < length; i++ )
+                ret += characters.charAt(Math.floor(Math.random() * charactersLength));
+            return ret;
         }
     });
 </script>
