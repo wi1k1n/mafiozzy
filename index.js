@@ -35,6 +35,12 @@ wss.on('connection', function connection(ws, rq) {
     // nm: 50-59
     let connectionID = getConnectionHash (rq.headers);
     if (DEBUG) console.log('[dbg] #' + connectionID + ' connected with headers:\n' + JSON.stringify(rq.headers));
+    // Add new connection to user list and terminate previous connection if there was one
+    if (!users.hasOwnProperty(connectionID))
+        users[connectionID] = new User(connectionID);
+    else
+        users[connectionID].ws.close(4001, 'Another connection for this user created!');
+    users[connectionID].ws = ws;
     ws.on('message', function incoming(msgRaw) {
         if (DEBUG) console.log('[dbg] << ' + msgRaw);
         let msg = null;
@@ -51,8 +57,6 @@ wss.on('connection', function connection(ws, rq) {
 
         // User requested id
         if ('id' === cmd) {
-            if (!users.hasOwnProperty(connectionID))
-                users[connectionID] = new User(connectionID);
             return sendJSON({cmd: 'id', code: 10, uid: connectionID});
         }
 
@@ -72,8 +76,15 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'nm', code: 52, msg: 'Invalid name'});
             if (users[userID].name === msg.name)
                 return sendJSON({cmd: 'nm', code: 53, msg: 'Your current name is already the same'});
-            users[userID].name = msg.name;
-            return sendJSON({cmd: 'nm', code: 50});
+            let name = msg.name;
+            users[userID].name = name;
+            Object.keys(rooms).forEach(function(rid) {
+                if (rooms[rid].players.hasOwnProperty(userID))
+                    rooms[rid].players[userID].name = name;
+            });
+            sendJSON({cmd: 'nm', code: 50});
+            els(null, userID, 63);
+            return;
         }
 
         // Check received roomID
@@ -104,8 +115,7 @@ wss.on('connection', function connection(ws, rq) {
             rooms[roomID].players[userID] = new Player(userID, 'spec');
             console.warn('[TODO] Disconnect every other connection except this one');
             sendJSON({cmd: 'jn', code: 40});
-            els(roomID, userID);
-            return;
+            els(roomID, userID, 62);
         } else if ('ls' === cmd) {
             // List of players requested
             if (!rooms.hasOwnProperty(roomID))
@@ -114,11 +124,25 @@ wss.on('connection', function connection(ws, rq) {
         }
     });
 
-    function els(roomID, exceptUID) {
+    function els(roomID, exceptUID, code) {
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
-
-        return sendJSON({cmd: 'els', code: 61, data: prepareListOfUsers(roomID)});
+        code = code ? code : 61;
+        // Broadcast only to users of room with roomID, if roomID is specified
+        if (roomID) {
+            Object.keys(rooms[roomID].players).forEach(function(uid) {
+                if (uid !== exceptUID)
+                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(roomID)}, users[uid].ws);
+            });
+            return;
+        }
+        // Broadcast to every room, where exceptUID participates
+        Object.keys(rooms).forEach(function(rid) {
+            Object.keys(rooms[rid].players).forEach(function(uid) {
+                if (rooms[rid].players.hasOwnProperty(exceptUID) && uid !== exceptUID)
+                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(rid)}, users[uid].ws);
+            });
+        });
     }
     function prepareListOfUsers(roomID) {
         let obj = {
@@ -131,10 +155,11 @@ wss.on('connection', function connection(ws, rq) {
         return obj;
     }
 
-    function sendJSON(json) {
+    function sendJSON(json, wsock) {
+        wsock = wsock ? wsock : ws;
         json['timestamp'] = new Date().getTime();
         console.log('[dbg] >> ' + JSON.stringify(json));
-        ws.send(JSON.stringify(json));
+        wsock.send(JSON.stringify(json));
     }
 
     function Room(rid, players, host, locked) {
@@ -144,9 +169,10 @@ wss.on('connection', function connection(ws, rq) {
         this.host = host ? host : null;
         this.locked = locked ? locked : false;
     }
-    function User(uid, name) {
+    function User(uid, ws, name) {
         if (!uid) console.warn('[User] Invalid userID! Something goes wrong!');
         this.uid = uid;
+        this.ws = ws ? ws : null;
         this.name = name ? name.toString() : '';
     }
     function Player(uid, rid, team) {

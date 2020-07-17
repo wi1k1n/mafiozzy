@@ -97,6 +97,7 @@
                 } else {
                     // If userID is already saved, request room creation
                     gameStatus = 'room_requested';
+                    askRequestUserName(true);
                     sendJSON({cmd: 'cr', uid: userID, rid: roomID});
                 }
             };
@@ -104,6 +105,9 @@
             ws.onclose = function(evt) {
                 if (evt.wasClean) {
                     console.log(`[ws] Connection closed cleanly, code=${evt.code} reason=${evt.reason}`);
+                    if (evt.code === 4001) {
+                        $('#spectators').text('Connection closed because another instance has been initiated!');
+                    }
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
                     console.log('[ws] Connection died');
@@ -178,7 +182,21 @@
                     });
                     $('#spectators').text(specs.substring(0, specs.length - 2));
                     return console.log('List of players: ' + JSON.stringify(msg.data));
-                } else if ('err' === cmd) {
+                }
+                // Server events
+                else if ('els' === cmd) {
+                    // Response after 'list users' request
+                    // code == 62 - new player joined
+                    // code == 63 - player changed his name
+                    let specs = '';
+                    msg.data.players.forEach(function (u) {
+                        specs += (u.hasOwnProperty('name') && u.name ? u.name : u.uid) + ', ';
+                    });
+                    $('#spectators').text(specs.substring(0, specs.length - 2));
+                    return console.log('List of players: ' + JSON.stringify(msg.data));
+                }
+                // Error handler
+                else if ('err' === cmd) {
                     if (code === 1) {
                         // Server does not know our userID. Request new one
                         localStorage.removeItem('uid');
