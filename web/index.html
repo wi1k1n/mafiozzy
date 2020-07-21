@@ -41,6 +41,7 @@
             <div id="div_host_btns" class="hidden">
                 <p>
                     <button type="button" class="btn btn-info" id="btn_shuffle_players">Shuffle players</button>
+                    <button type="button" class="btn" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
                     <button type="button" class="btn btn-warning" id="btn_shuffle_roles">Shuffle roles</button>
                 </p>
             </div>
@@ -51,6 +52,65 @@
         </div>
     </div>
 </div>
+
+<!-- Modal with roles -->
+<div class="modal" id="modal_roles" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Setup roles for this run</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div class="form-group row">
+                        <label for="inp_role_innocent" class="col-4 col-form-label">Innocent</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_innocent">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="inp_role_sheriff" class="col-4 col-form-label">Sheriff</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_sheriff">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="inp_role_mafia" class="col-4 col-form-label">Mafia</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_mafia">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="inp_role_mafboss" class="col-4 col-form-label">Mafia Boss</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_mafboss">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_manniac">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>
+                        <div class="col-4">
+                            <input class="form-control" type="number" value="0" id="inp_role_doctor">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btn_modal_roles_save">Save changes</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="hidden" id="div_templates">
     <ul><li class="list-group-item template_player_row">Player</li></ul>
 </div>
@@ -87,6 +147,14 @@
         let userID = localStorage.hasOwnProperty('uid') ? localStorage.getItem('uid') : null;
         let userName = localStorage.hasOwnProperty('name') ? localStorage.getItem('name') : '';
         let connected = false; // needed for determining if
+        let roleSetup = {
+            'Innocent': 3,
+            'Sheriff': 1,
+            'Mafia': 2,
+            'MafiaBoss': 0,
+            'Manniac': 0,
+            'Doctor': 0
+        };
 
         if (DEBUG) $('#debugContainer').removeClass('hidden');
 
@@ -247,6 +315,15 @@
                 if (!$(this).attr('disabled')) {
                     sendJSON({cmd: 'tm', uid: userID, team: 'spec'});
                 }
+            });
+            $('#btn_modal_roles_save').click(function(e) {
+                roleSetup['Innocent'] = parseInt($('#inp_role_innocent').val());
+                roleSetup['Sheriff'] = parseInt($('#inp_role_sheriff').val());
+                roleSetup['Mafia'] = parseInt($('#inp_role_mafia').val());
+                roleSetup['MafiaBoss'] = parseInt($('#inp_role_mafboss').val());
+                roleSetup['Manniac'] = parseInt($('#inp_role_manniac').val());
+                roleSetup['Doctor'] = parseInt($('#inp_role_doctor').val());
+                $('#modal_roles').modal('hide');
             });
             function updateGUIonCmdLS(data) {
                 // Handle visibility of list containers
