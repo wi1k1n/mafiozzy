@@ -85,8 +85,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'jn', code: 42, msg: 'Already in room'});
             if (rooms[roomID].locked)
                 return sendJSON({cmd: 'jn', code: 43, msg: 'This room is locked ATM'});
-            rooms[roomID].players[userID] = new Player(userID, 'spec');
-            console.warn('[TODO] Disconnect every other connection except this one');
+            rooms[roomID].players[userID] = new Player(userID, 'spec', -1, null);
+                // Object.values(rooms[roomID].players).filter(p => p.team === 'player').length+1, null);
             sendJSON({cmd: 'jn', code: 40});
             els(roomID, userID, 62);
             return;
@@ -101,6 +101,12 @@ wss.on('connection', function connection(ws, rq) {
             if (!TEAMS.some(e => e === msg.team))
                 return sendJSON({cmd: 'tm', code: 72, msg: 'Invalid team requested'});
             rooms[roomID].players[userID].team = msg.team;
+            // Handle numbers
+            let players = [...Object.values(rooms[roomID].players).filter(p => p.team === 'player')];
+            players.sort((a, b) => a.number < b.number ? -1 : (a.number > b.number ? 1 : 0));
+            for (let i = 0; i < players.length; i++)
+                rooms[roomID].players[players[i].uid].number = i + 1;
+
             sendJSON({cmd: 'tm', code: 70});
             els(roomID, userID, 64);
             return;
@@ -166,11 +172,13 @@ wss.on('connection', function connection(ws, rq) {
         this.ws = ws ? ws : null;
         this.name = name ? name.toString() : '';
     }
-    function Player(uid, rid, team) {
+    function Player(uid, team, number, role) {
         if (!uid) console.warn('[Player] Invalid userID! Something goes wrong!');
         this.uid = uid ? uid : null;
         this.team = team ? team : 'spec';
         this.name = uid in users ? users[uid].name : '';
+        this.role = role ? role : null;
+        this.number = number ? number : -1;
     }
 });
 

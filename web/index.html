@@ -12,6 +12,9 @@
         .hidden {
             display: none;
         }
+        .red {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -33,6 +36,12 @@
                 <p>
                     <button type="button" class="btn btn-primary" id="btn_play">Play</button>
                     <button type="button" class="btn btn-primary" id="btn_spectate">Spectate</button>
+                </p>
+            </div>
+            <div id="div_host_btns" class="hidden">
+                <p>
+                    <button type="button" class="btn btn-info" id="btn_shuffle_players">Shuffle players</button>
+                    <button type="button" class="btn btn-warning" id="btn_shuffle_roles">Shuffle roles</button>
                 </p>
             </div>
             <div id="div_players" class="hidden">
@@ -57,6 +66,9 @@
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 <script>
+    $(window).on('hashchange', function(e) {
+        location.reload();
+    });
     $(document).ready(function() {
         let DEBUG = true;
         let RID_LENGTH = 5;
@@ -115,20 +127,21 @@
                 if (evt.wasClean) {
                     console.log(`[ws] Connection closed cleanly, code=${evt.code} reason=${evt.reason}`);
                     if (evt.code === 4001) {
-                        $('#spectators').text('Connection closed because another instance has been initiated!');
+                        updateStatus('Connection closed because another instance has been initiated!');
                     }
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
-                    console.log('[ws] Connection died');
+                    console.log('[ws] Connection died. Connected === ' + connected);
                     if (!connected) {
-                        $('#p_ws_status').removeClass('hidden').text('Could not connect to server!');
-                        alert('Could not connect to server!');
+                        updateStatus('Could not connect to server!');
                     } else {
-                        $('#p_ws_status').removeClass('hidden').text('Connection closed!');
-                        alert('Connection closed!');
+                        updateStatus('Connection closed!');
                     }
                 }
                 connected = false;
+                function updateStatus(statusMsg) {
+                    $('#p_ws_status').removeClass('hidden').html('<span class="red">'+statusMsg+'</span>');
+                }
             };
             ws.onerror = function(evt) {
                 console.log(`[ws] Error: ${evt.message}`);
@@ -240,6 +253,9 @@
                 $('#p_spectators_container').removeClass('hidden');
                 $('#div_players').removeClass('hidden');
                 $('#div_team_btns').removeClass('hidden');
+                if (userID === data.host) {
+                    $('#div_host_btns').removeClass('hidden');
+                }
 
                 // Disable correct button [Spectate] or [Play]
                 let myTeam = data.players.filter(p => p.uid === userID)[0].team;
@@ -251,19 +267,24 @@
                     $('#btn_spectate').removeAttr('disabled');
                 }
 
-                let pList = $('#list_players').html('');
+                // Fill spectators first
                 let specs = '';
-                let players = [];
-                data.players.forEach(function (u) {
-                    if (u.team === 'spec') {
-                        specs += u.name + ', ';
-                    } else if (u.team === 'player') {
-                        let pRow = $('#div_templates .template_player_row').first().clone();
-                        pRow.text(u.name);
-                        pList.append(pRow);
-                    }
+                data.players.filter(p => p.team === 'spec').forEach(function(us) {
+                    let n = us.name;
+                    if (us.uid === data.host) n = '<u>' + n + '</u>';
+                    specs += n + ', ';
                 });
-                $('#spectators').text(specs.substring(0, specs.length - 2));
+
+                // Then work with players
+                let pList = $('#list_players').html('');
+                let players = data.players.filter(p => p.team === 'player');
+                players.sort((a, b) => a.number < b.number ? -1 : (a.number > b.number ? 1 : 0));
+                players.forEach(function(up) {
+                    let pRow = $('#div_templates .template_player_row').first().clone();
+                    pRow.text('#' + up.number + ' ' + up.name);
+                    pList.append(pRow);
+                });
+                $('#spectators').html(specs.substring(0, specs.length - 2));
                 data.players.forEach(function(p) {
 
                 });
