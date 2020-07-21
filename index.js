@@ -96,6 +96,7 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'ls', code: 31, msg: 'No room found'});
             return sendJSON({cmd: 'ls', code: 30, data: prepareListOfUsers(roomID)});
         } else if ('tm' === cmd) {
+            // Change of team requested
             if (!msg.hasOwnProperty('team'))
                 return sendJSON({cmd: 'tm', code: 71, msg: 'Team not specified'});
             if (!TEAMS.some(e => e === msg.team))
@@ -110,7 +111,20 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'tm', code: 70});
             els(roomID, userID, 64);
             return;
+        } else if ('cn' === cmd) {
+            // Change numbers of players requested
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'cn', code: 81, msg: 'You are not host of room'});
+            if (!msg.hasOwnProperty('data'))
+                return sendJSON({cmd: 'cn', code: 82, msg: 'Data not specified'});
+            msg.data.forEach(function(p) {
+                rooms[roomID].players[p.uid].number = p.number;
+            });
+            sendJSON({cmd: 'cn', code: 80});
+            els(roomID, userID, 65);
+            return;
         }
+        return;
     });
 
     function els(roomID, exceptUID, code) {

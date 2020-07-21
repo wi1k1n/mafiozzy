@@ -40,9 +40,9 @@
             </div>
             <div id="div_host_btns" class="hidden">
                 <p>
-                    <button type="button" class="btn btn-info" id="btn_shuffle_players">Shuffle players</button>
+                    <button type="button" class="btn btn-info" id="btn_shuffle_players">🎲 players</button>
                     <button type="button" class="btn" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
-                    <button type="button" class="btn btn-warning" id="btn_shuffle_roles">Shuffle roles</button>
+                    <button type="button" class="btn btn-warning" id="btn_shuffle_roles">🎲 roles</button>
                 </p>
             </div>
             <div id="div_players" class="hidden">
@@ -155,6 +155,7 @@
             'Manniac': 0,
             'Doctor': 0
         };
+        let players = null;
 
         if (DEBUG) $('#debugContainer').removeClass('hidden');
 
@@ -261,10 +262,17 @@
                     // Response after 'list users' request
                     if (code !== 30 || !msg.hasOwnProperty('data'))
                         return serverErrReturnedHandler(msg);
+                    players = msg.data.players.filter(p => p.team === 'player');
                     updateGUIonCmdLS(msg.data);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
                 } else if ('tm' === cmd) {
+                    // Response after 'change team' request
                     if (code !== 70)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('cn' === cmd) {
+                    // Response after 'change numbers' request
+                    if (code !== 80)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
                 }
@@ -273,6 +281,7 @@
                     // Response after 'list users' request
                     // code == 62 - new player joined
                     // code == 63 - player changed his name
+                    players = msg.data.players.filter(p => p.team === 'player');
                     updateGUIonCmdLS(msg.data);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
                 }
@@ -306,6 +315,14 @@
                 console.log('Server error: #' + msg.code + (msg.hasOwnProperty('msg') ? (': '+msg.msg) : ''));
             }
 
+            $('#btn_shuffle_players').click(function(e) {
+                let indices = Array.from(Array(players.length).keys());
+                for (let i = indices.length; i > 0; i--) {
+                    let ind = Math.floor(Math.random() * i);
+                    players[i - 1].number = indices.splice(ind, 1)[0] + 1;
+                }
+                sendJSON({cmd: 'cn', uid: userID, data: players});
+            });
             $('#btn_play').click(function(e) {
                 if (!$(this).attr('disabled')) {
                     sendJSON({cmd: 'tm', uid: userID, team: 'player'});
@@ -327,7 +344,6 @@
             });
             function updateGUIonCmdLS(data) {
                 // Handle visibility of list containers
-                $('#p_spectators_container').removeClass('hidden');
                 $('#div_players').removeClass('hidden');
                 $('#div_team_btns').removeClass('hidden');
                 if (userID === data.host) {
@@ -351,6 +367,10 @@
                     if (us.uid === data.host) n = '<u>' + n + '</u>';
                     specs += n + ', ';
                 });
+                if (specs.length > 0) {
+                    $('#p_spectators_container').removeClass('hidden');
+                } else
+                    $('#p_spectators_container').addClass('hidden');
 
                 // Then work with players
                 let pList = $('#list_players').html('');
