@@ -2,7 +2,9 @@ const webSocket = require('ws');
 const crypto = require('crypto')
 
 const USERID_LENGTH = 16;
+const BROWSERINSTANCEID_LENGTH = 4;
 const DEBUG = true;
+const TEAMS = ['spec', 'player'];
 
 var rooms = {};
 var users = {};
@@ -14,33 +16,23 @@ wss.on('listening', function listening() {
 });
 
 wss.on('connection', function connection(ws, rq) {
-    // Client => Server requests:
-    // id: => request user id
-    // nm: => set user name
-    // cr:userID:roomID => create room
-    // jn:userID:roomID => join room
-    // ls:userID => list of players
-    //
-    // Server => Client responses:
-    // er:erCode:erMsg => error
-    // id: => responds with user id
-    // cr:responseID[:responseMsg]
-    //
-    // Returning codes:
-    // err: 00-09
-    // id: 10-19
-    // cr: 20-29
-    // ls: 30-39
-    // jn: 40-49
-    // nm: 50-59
-    let connectionID = getConnectionHash (rq.headers);
-    if (DEBUG) console.log('[dbg] #' + connectionID + ' connected with headers:\n' + JSON.stringify(rq.headers));
+    let biidAndRID = parseWebsocketProtocol(rq.headers);
+    if (!biidAndRID || biidAndRID.length !== 2) {
+        console.warn('Invalid websocket protocol value!');
+        ws.close(1002, 'Invalid websocket protocol value. Must consist of roomID and biID!');
+        return;
+    }
+    let biID = biidAndRID[0];
+    let roomID = biidAndRID[1];
+    let connectionID = getConnectionHash(rq.headers);
+    if (DEBUG) console.log('[dbg] #' + connectionID + ' connected to room #'+roomID+' with headers:\n' + JSON.stringify(rq.headers));
     // Add new connection to user list and terminate previous connection if there was one
     if (!users.hasOwnProperty(connectionID))
         users[connectionID] = new User(connectionID);
     else
-        users[connectionID].ws.close(4001, 'Another connection for this user created!');
+        users[connectionID].ws.close(4001, 'Another connection for this user was created!');
     users[connectionID].ws = ws;
+    if (!rooms.hasOwnProperty(roomID)) rooms[roomID] = new Room(roomID, {}, connectionID);
     ws.on('message', function incoming(msgRaw) {
         if (DEBUG) console.log('[dbg] << ' + msgRaw);
         let msg = null;
@@ -87,27 +79,8 @@ wss.on('connection', function connection(ws, rq) {
             return;
         }
 
-        // Check received roomID
-        let roomID = null;
-        if (msg.hasOwnProperty('rid'))
-            roomID = msg.rid;
-        // Return error if roomID is not specified or invalid
-        if (!roomID || !validateChatID(roomID))
-            return sendJSON({cmd: 'err', code: 2, msg: 'RoomID is not specified or invalid.'});
-
-        if ('cr' === cmd) {
-            // New room requested
-            if (rooms.hasOwnProperty(roomID))
-                return sendJSON({cmd: 'cr', code: 21, msg: 'This roomID is already in use. Use "jn:" command to request to join'});
-            rooms[roomID] = new Room(roomID, {}, userID);
-            return sendJSON({cmd: 'cr', code: 20});
-        } else if ('jn' === cmd) {
+        if ('jn' === cmd) {
             // Join room request
-            let roomID = null;
-            if (msg.hasOwnProperty('rid'))
-                roomID = msg.rid;
-            if (!rooms.hasOwnProperty(roomID))
-                return sendJSON({cmd: 'jn', code: 41, msg: 'No room found'});
             if (userID in rooms[roomID].players)
                 return sendJSON({cmd: 'jn', code: 42, msg: 'Already in room'});
             if (rooms[roomID].locked)
@@ -116,15 +89,30 @@ wss.on('connection', function connection(ws, rq) {
             console.warn('[TODO] Disconnect every other connection except this one');
             sendJSON({cmd: 'jn', code: 40});
             els(roomID, userID, 62);
+            return;
         } else if ('ls' === cmd) {
             // List of players requested
             if (!rooms.hasOwnProperty(roomID))
                 return sendJSON({cmd: 'ls', code: 31, msg: 'No room found'});
             return sendJSON({cmd: 'ls', code: 30, data: prepareListOfUsers(roomID)});
+        } else if ('tm' === cmd) {
+            if (!msg.hasOwnProperty('team'))
+                return sendJSON({cmd: 'tm', code: 71, msg: 'Team not specified'});
+            if (!TEAMS.some(e => e === msg.team))
+                return sendJSON({cmd: 'tm', code: 72, msg: 'Invalid team requested'});
+            rooms[roomID].players[userID].team = msg.team;
+            sendJSON({cmd: 'tm', code: 70});
+            els(roomID, userID, 64);
+            return;
         }
     });
 
     function els(roomID, exceptUID, code) {
+        // Codes:
+        // 62 - user joined
+        // 63 - name changed
+        // 64 - team changed
+
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
         code = code ? code : 61;
@@ -150,7 +138,10 @@ wss.on('connection', function connection(ws, rq) {
             host: rooms[roomID].host
         };
         for (let uid in rooms[roomID].players) {
-            obj.players.push(rooms[roomID].players[uid]);
+            let p = rooms[roomID].players[uid];
+            if (!p.hasOwnProperty('name') || !p.name)
+                p.name = p.uid;
+            obj.players.push(p);
         }
         return obj;
     }
@@ -190,6 +181,12 @@ function getConnectionHash(headers) {
     return crypto.createHash('md5')
         .update(headers['origin'] + '=>' + headers['user-agent'] + postfix)
         .digest("hex").substring(0, USERID_LENGTH);
+}
+function parseWebsocketProtocol(headers) {
+    if (!headers.hasOwnProperty('sec-websocket-protocol')) return null;
+    let protocol = headers['sec-websocket-protocol'];
+    if (protocol.length <= BROWSERINSTANCEID_LENGTH) return null;
+    return [protocol.substring(0, BROWSERINSTANCEID_LENGTH), protocol.substring(BROWSERINSTANCEID_LENGTH)];
 }
 function validateChatID(chatID) {
     console.warn('TODO: chatID validation');

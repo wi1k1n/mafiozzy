@@ -26,12 +26,25 @@
     </div>
     <!-- Game room container -->
     <div class="row justify-content-center hidden" id="gameContainer">
-        <div class="col-lg-12 pt-5 text-center">
-            <p>Spectators: <span id="spectators"></span></p>
+        <div class="col-lg-4 pt-5">
+            <p id="p_ws_status" class="hidden"></p>
+            <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
+            <div id="div_team_btns" class="hidden">
+                <p>
+                    <button type="button" class="btn btn-primary" id="btn_play">Play</button>
+                    <button type="button" class="btn btn-primary" id="btn_spectate">Spectate</button>
+                </p>
+            </div>
+            <div id="div_players" class="hidden">
+                <ul class="list-group" id="list_players">
+                </ul>
+            </div>
         </div>
     </div>
 </div>
-
+<div class="hidden" id="div_templates">
+    <ul><li class="list-group-item template_player_row">Player</li></ul>
+</div>
 <!-- Debugger panel -->
 <footer class="page-footer fixed-bottom pb-3 hidden" id="debugContainer">
     <div class="container">
@@ -87,19 +100,15 @@
             $('#lobbyContainer').addClass('hidden');
             $('#gameContainer').removeClass('hidden');
 
-            let ws = new WebSocket('ws://localhost:6001', biID);
+            $('#p_ws_status').removeClass('hidden').text('Connecting to server...');
+
+            let ws = new WebSocket('ws://localhost:6001', biID.toString()+roomID.toString());
             ws.onopen = function(evt) {
                 connected = true;
                 console.log("[ws] Connection with server established");
-                if (!userID) {
-                    // Request userID
-                    sendJSON({cmd: 'id'});
-                } else {
-                    // If userID is already saved, request room creation
-                    gameStatus = 'room_requested';
-                    askRequestUserName(true);
-                    sendJSON({cmd: 'cr', uid: userID, rid: roomID});
-                }
+                $('#p_spectators_container').removeClass('hidden');
+                $('#p_ws_status').addClass('hidden');
+                sendJSON({cmd: 'id'});
             };
             ws.onmessage = onMessage;
             ws.onclose = function(evt) {
@@ -111,8 +120,13 @@
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
                     console.log('[ws] Connection died');
-                    if (!connected)
+                    if (!connected) {
+                        $('#p_ws_status').removeClass('hidden').text('Could not connect to server!');
                         alert('Could not connect to server!');
+                    } else {
+                        $('#p_ws_status').removeClass('hidden').text('Connection closed!');
+                        alert('Connection closed!');
+                    }
                 }
                 connected = false;
             };
@@ -142,57 +156,43 @@
                     userID = msg.uid;
                     localStorage.setItem('uid', userID);
                     askRequestUserName(true);
-                    sendJSON({cmd: 'cr', uid: userID, rid: roomID});
+                    return sendJSON({cmd: 'jn', uid: userID});
                 } else if ('nm' === cmd) {
                     if (code !== 50) {
                         userName = '';
                         return serverErrReturnedHandler(msg);
                     }
                     localStorage.setItem('name', userName);
-                } else if ('cr' === cmd) {
-                    // Response after 'create room' request
-                    // Requesting to join room
-                    if (code === 21) {
-                        // this roomID already exists
-                        return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
-                    } else if (code !== 20)
-                        return serverErrReturnedHandler(msg);
-                    console.log('create room succeeded');
-                    return sendJSON({cmd: 'jn', uid: userID, rid: roomID});
                 } else if ('jn' === cmd) {
                     // Response after 'join room' request
                     // Requesting player list
                     if (code === 42) {
                         // this userID already in this room
-                        return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
+                        return sendJSON({cmd: 'ls', uid: userID});
                     } else if (code === 43) {
                         // the room is locked
                         return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                     } else if (code !== 40)
                         return serverErrReturnedHandler(msg);
                     console.log('join room succeeded');
-                    return sendJSON({cmd: 'ls', uid: userID, rid: roomID});
+                    return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('ls' === cmd) {
                     // Response after 'list users' request
                     if (code !== 30 || !msg.hasOwnProperty('data'))
                         return serverErrReturnedHandler(msg);
-                    let specs = '';
-                    msg.data.players.forEach(function (u) {
-                        specs += (u.hasOwnProperty('name') && u.name ? u.name : u.uid) + ', ';
-                    });
-                    $('#spectators').text(specs.substring(0, specs.length - 2));
+                    updateGUIonCmdLS(msg.data);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
+                } else if ('tm' === cmd) {
+                    if (code !== 70)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 }
                 // Server events
                 else if ('els' === cmd) {
                     // Response after 'list users' request
                     // code == 62 - new player joined
                     // code == 63 - player changed his name
-                    let specs = '';
-                    msg.data.players.forEach(function (u) {
-                        specs += (u.hasOwnProperty('name') && u.name ? u.name : u.uid) + ', ';
-                    });
-                    $('#spectators').text(specs.substring(0, specs.length - 2));
+                    updateGUIonCmdLS(msg.data);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
                 }
                 // Error handler
@@ -223,6 +223,50 @@
                     return;
                 }
                 console.log('Server error: #' + msg.code + (msg.hasOwnProperty('msg') ? (': '+msg.msg) : ''));
+            }
+
+            $('#btn_play').click(function(e) {
+                if (!$(this).attr('disabled')) {
+                    sendJSON({cmd: 'tm', uid: userID, team: 'player'});
+                }
+            });
+            $('#btn_spectate').click(function(e) {
+                if (!$(this).attr('disabled')) {
+                    sendJSON({cmd: 'tm', uid: userID, team: 'spec'});
+                }
+            });
+            function updateGUIonCmdLS(data) {
+                // Handle visibility of list containers
+                $('#p_spectators_container').removeClass('hidden');
+                $('#div_players').removeClass('hidden');
+                $('#div_team_btns').removeClass('hidden');
+
+                // Disable correct button [Spectate] or [Play]
+                let myTeam = data.players.filter(p => p.uid === userID)[0].team;
+                if (myTeam === 'spec') {
+                    $('#btn_play').removeAttr('disabled');
+                    $('#btn_spectate').attr('disabled', 'disabled');
+                } else if (myTeam === 'player') {
+                    $('#btn_play').attr('disabled', 'disabled');
+                    $('#btn_spectate').removeAttr('disabled');
+                }
+
+                let pList = $('#list_players').html('');
+                let specs = '';
+                let players = [];
+                data.players.forEach(function (u) {
+                    if (u.team === 'spec') {
+                        specs += u.name + ', ';
+                    } else if (u.team === 'player') {
+                        let pRow = $('#div_templates .template_player_row').first().clone();
+                        pRow.text(u.name);
+                        pList.append(pRow);
+                    }
+                });
+                $('#spectators').text(specs.substring(0, specs.length - 2));
+                data.players.forEach(function(p) {
+
+                });
             }
         }
 
