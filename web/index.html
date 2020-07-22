@@ -257,7 +257,7 @@
                     askRequestUserName(true);
                     return sendJSON({cmd: 'jn', uid: userID});
                 } else if ('nm' === cmd) {
-                    if (code !== 50) {
+                    if (code !== 50 && code !== 53) {
                         userName = '';
                         return serverErrReturnedHandler(msg);
                     }
@@ -338,8 +338,10 @@
             function askRequestUserName(checkIfNeeded) {
                 let name = userName;
                 if (!checkIfNeeded || !userName) name = prompt('Enter your nickname:', userName);
-                sendJSON({cmd: 'nm', uid: userID, name: name});
-                userName = name;
+                if (name) {
+                    sendJSON({cmd: 'nm', uid: userID, name: name});
+                    userName = name;
+                }
             }
             function sendJSON(json) {
                 json['timestamp'] = new Date().getTime();
