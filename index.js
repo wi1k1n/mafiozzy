@@ -149,9 +149,39 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'kl', code: 104, msg: 'You are not a MafiaBoss.'});
             if (killer.status !== 'playing')
                 return sendJSON({cmd: 'kl', code: 105, msg: 'You have already been killed.'});
+            if (killed.status !== 'playing')
+                return sendJSON({cmd: 'kl', code: 106, msg: 'Player you r killing has already been killed.'});
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             els(roomID, userID, 67);
+            return;
+        } else if ('cs' === cmd) {
+            // Change roles of players requested
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'cs', code: 111, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('data'))
+                return sendJSON({cmd: 'cs', code: 112, msg: 'Data not specified'});
+            msg.data.forEach(function(p) {
+                rooms[roomID].players[p.uid].status = p.status;
+            });
+            sendJSON({cmd: 'cs', code: 110});
+            els(roomID, userID, 68);
+            return;
+        } else if ('vt' === cmd) {
+            // Player requested to kill player
+            let voter = rooms[roomID].players[userID];
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'vt', code: 121, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'vt', code: 122, msg: 'puid field not specified'});
+            let voted = rooms[roomID].players[msg.puid];
+            if (voted.team !== 'player')
+                return sendJSON({cmd: 'vt', code: 123, msg: 'Player you r killing is not playing ATM.'});
+            if (voted.status !== 'playing')
+                return sendJSON({cmd: 'vt', code: 124, msg: 'Player you r killing has already been killed or voted.'});
+            voted.status = 'voted';
+            sendJSON({cmd: 'vt', code: 120});
+            els(roomID, userID, 69);
             return;
         }
         return;
@@ -165,6 +195,8 @@ wss.on('connection', function connection(ws, rq) {
         // 65 - numbers changed
         // 66 - roles changed
         // 67 - player killed
+        // 68 - statuses changed (by host)
+        // 69 - player got voted
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;

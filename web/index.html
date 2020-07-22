@@ -15,6 +15,12 @@
         .red {
             color: red;
         }
+        .active {
+            font-weight: bold;
+        }
+        .bggray {
+            background-color: #aaaaaa;
+        }
     </style>
 </head>
 <body>
@@ -34,14 +40,17 @@
             <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
             <div id="div_team_btns" class="hidden">
                 <p>
-                    <button type="button" class="btn btn-primary" id="btn_play">Play</button>
-                    <button type="button" class="btn btn-primary" id="btn_spectate">Spectate</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_play">Play</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_spectate">Spectate</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_change_name">Change name</button>
                 </p>
             </div>
             <div id="div_host_btns" class="hidden">
                 <p>
-                    <button type="button" class="btn btn-info" id="btn_shuffle_players">🎲 players</button>
-                    <button type="button" class="btn btn-warning" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">Reset</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
                 </p>
             </div>
             <div id="div_players" class="hidden">
@@ -58,7 +67,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Setup roles for this run</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" id="btn_modal_close_cross">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -150,6 +159,8 @@
         let userID = localStorage.hasOwnProperty('uid') ? localStorage.getItem('uid') : null;
         let userName = localStorage.hasOwnProperty('name') ? localStorage.getItem('name') : '';
         let connected = false; // needed for determining if
+        let iamhost = false;
+        let iamspec = true;
         let roleSetup = {
             'Innocent': 3,
             'Sheriff': 1,
@@ -248,6 +259,7 @@
                         return serverErrReturnedHandler(msg);
                     }
                     localStorage.setItem('name', userName);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('jn' === cmd) {
                     // Response after 'join room' request
                     // Requesting player list
@@ -288,6 +300,16 @@
                     if (code !== 100)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('cs' === cmd) {
+                    // Response after 'change statuses' request
+                    if (code !== 110)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('vt' === cmd) {
+                    // Response after 'kill player' request
+                    if (code !== 120)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -309,6 +331,7 @@
                 //console.log(`[ws] Received: ${evt.data}`);
             }
 
+            $('#btn_change_name').click(function(e) {askRequestUserName();});
             function askRequestUserName(checkIfNeeded) {
                 let name = userName;
                 if (!checkIfNeeded || !userName) name = prompt('Enter your nickname:', userName);
@@ -376,6 +399,16 @@
                 }
                 sendJSON({cmd: 'cr', uid: userID, data: players});
             });
+            $('#btn_killed_reset').click(function(e) {
+                players.forEach(function(p) {
+                    p.status = 'playing';
+                });
+                sendJSON({cmd: 'cs', uid: userID, data: players});
+            });
+            $('#btn_vote').click(function(e) {
+                if ($(this).hasClass('active')) $(this).removeClass('active');
+                else $(this).addClass('active');
+            });
             $('#btn_play').click(function(e) {
                 if (!$(this).attr('disabled')) {
                     sendJSON({cmd: 'tm', uid: userID, team: 'player'});
@@ -391,6 +424,7 @@
                 $('#modal_roles').modal('hide');
             });
             $('#btn_modal_close').click(function(e) { setRolesPDF(roleSetup); });
+            $('#btn_modal_close_cross').click(function(e) { setRolesPDF(roleSetup); });
             function getRolesPDF() {
                 let rs = {};
                 rs['Innocent'] = parseInt($('#inp_role_innocent').val());
@@ -413,8 +447,8 @@
                 // Handle visibility of list containers
                 $('#div_players').removeClass('hidden');
                 $('#div_team_btns').removeClass('hidden');
-                let iamhost = userID === data.host;
-                let iamspec = data.players.some(p => p.uid === userID && p.team === 'spec');
+                iamhost = userID === data.host;
+                iamspec = data.players.some(p => p.uid === userID && p.team === 'spec');
                 let myRole = data.players.filter(p => p.uid === userID)[0].role;
                 if (iamhost) {
                     $('#div_host_btns').removeClass('hidden');
@@ -452,25 +486,29 @@
                     if (iamspec || up.uid === userID ||
                         ((myRole === 'Mafia' || myRole === 'MafiaBoss') && (up.role === 'Mafia' || up.role === 'MafiaBoss')))
                         txt += ' (' + up.role + ')';
-                    if (myRole === 'MafiaBoss' && !iamspec) {
-                        txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
-                    }
+                    txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     if (userID === up.uid)
                         txt = '<b>' + txt + '</b>';
                     pRow.html(txt);
                     pList.append(pRow);
-                    if (myRole === 'MafiaBoss') {
-                        $('#btn_kill_player_'+up.number).click(function(e) {
-                            sendJSON({cmd: 'kl', uid: userID, puid: up.uid});
-                        });
-                    }
-                    if (up.status === 'killed')
+                    $('#btn_kill_player_'+up.number).click(function(e) {
+                        playerClicked(e, up.uid);
+                    });
+                    if (up.status === 'killed') {
+                        $(pRow).addClass('bggray');
                         $(pRow).addClass('red');
+                    }
+                    if (up.status === 'voted')
+                        $(pRow).addClass('bggray');
                 });
                 $('#spectators').html(specs.substring(0, specs.length - 2));
-                data.players.forEach(function(p) {
-
-                });
+            }
+            function playerClicked(e, puid) {
+                let me = players.filter(p => p.uid === userID)[0];
+                if ($('#btn_vote').hasClass('active') && iamhost)
+                    return sendJSON({cmd: 'vt', uid: userID, puid: puid});
+                if (me.role === 'MafiaBoss' && !iamspec)
+                    return sendJSON({cmd: 'kl', uid: userID, puid: puid});
             }
         }
 
