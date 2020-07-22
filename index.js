@@ -135,6 +135,22 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'cr', code: 90});
             els(roomID, userID, 66);
             return;
+        } else if ('kl' === cmd) {
+            // Player requested to kill player
+            let killer = rooms[roomID].players[userID];
+            if (killer.team !== 'player')
+                return sendJSON({cmd: 'kl', code: 101, msg: 'You are not playing ATM.'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'kl', code: 102, msg: 'puid field not specified'});
+            let killed = rooms[roomID].players[msg.puid];
+            if (killed.team !== 'player')
+                return sendJSON({cmd: 'kl', code: 103, msg: 'Player you r killing is not playing ATM.'});
+            if (killer.role !== 'MafiaBoss')
+                return sendJSON({cmd: 'kl', code: 104, msg: 'You are not a MafiaBoss.'});
+            killed.status = 'killed';
+            sendJSON({cmd: 'kl', code: 100});
+            els(roomID, userID, 67);
+            return;
         }
         return;
     });
@@ -146,6 +162,7 @@ wss.on('connection', function connection(ws, rq) {
         // 64 - team changed
         // 65 - numbers changed
         // 66 - roles changed
+        // 67 - player killed
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
@@ -200,13 +217,14 @@ wss.on('connection', function connection(ws, rq) {
         this.ws = ws ? ws : null;
         this.name = name ? name.toString() : '';
     }
-    function Player(uid, team, number, role) {
+    function Player(uid, team, number, role, status) {
         if (!uid) console.warn('[Player] Invalid userID! Something goes wrong!');
         this.uid = uid ? uid : null;
         this.team = team ? team : 'spec';
         this.name = uid in users ? users[uid].name : '';
         this.role = role ? role : null;
         this.number = number ? number : -1;
+        this.status = status ? status : 'playing';
     }
 });
 

@@ -280,6 +280,11 @@
                     if (code !== 90)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('kl' === cmd) {
+                    // Response after 'kill player' request
+                    if (code !== 100)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -427,8 +432,18 @@
                     if (iamspec || up.uid === userID ||
                         ((myRole === 'Mafia' || myRole === 'MafiaBoss') && (up.role === 'Mafia' || up.role === 'MafiaBoss')))
                         txt += ' (' + up.role + ')';
-                    pRow.text(txt);
+                    if (myRole === 'MafiaBoss' && !iamspec) {
+                        txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
+                    }
+                    pRow.html(txt);
                     pList.append(pRow);
+                    if (myRole === 'MafiaBoss') {
+                        $('#btn_kill_player_'+up.number).click(function(e) {
+                            sendJSON({cmd: 'kl', uid: userID, puid: up.uid});
+                        });
+                    }
+                    if (up.status === 'killed')
+                        $(pRow).addClass('red');
                 });
                 $('#spectators').html(specs.substring(0, specs.length - 2));
                 data.players.forEach(function(p) {
