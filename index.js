@@ -109,6 +109,10 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'tm', code: 71, msg: 'Team not specified'});
             if (!TEAMS.some(e => e === msg.team))
                 return sendJSON({cmd: 'tm', code: 72, msg: 'Invalid team requested'});
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'tm', code: 73, msg: 'You are not in the room'});
+            if (rooms[roomID].playing)
+                return sendJSON({cmd: 'tm', code: 74, msg: 'The game is in process ATM.'});
             rooms[roomID].players[userID].team = msg.team;
             // Handle numbers
             let players = [...Object.values(rooms[roomID].players).filter(p => p.team === 'player')];
@@ -145,6 +149,9 @@ wss.on('connection', function connection(ws, rq) {
             return;
         } else if ('kl' === cmd) {
             // Player requested to kill player
+            if (!(userID in rooms[roomID].players)) {
+                return sendJSON({cmd: 'kl', code: 107, msg: 'You are not in the room'});
+            }
             let killer = rooms[roomID].players[userID];
             if (killer.team !== 'player')
                 return sendJSON({cmd: 'kl', code: 101, msg: 'You are not playing ATM.'});
@@ -177,6 +184,9 @@ wss.on('connection', function connection(ws, rq) {
             return;
         } else if ('vt' === cmd) {
             // Player requested to kill player
+            if (!(userID in rooms[roomID].players)) {
+                return sendJSON({cmd: 'vt', code: 125, msg: 'You are not in the room'});
+            }
             let voter = rooms[roomID].players[userID];
             if (rooms[roomID].host !== userID)
                 return sendJSON({cmd: 'vt', code: 121, msg: 'You are not the host of room'});
@@ -190,6 +200,27 @@ wss.on('connection', function connection(ws, rq) {
             voted.status = 'voted';
             sendJSON({cmd: 'vt', code: 120});
             els(roomID, userID, 69);
+            return;
+        } else if ('lr' === cmd) {
+            // Host requested to lock room
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'lr', code: 131, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('state'))
+                return sendJSON({cmd: 'lr', code: 132, msg: 'State not specified'});
+            rooms[roomID].locked = msg.state;
+            sendJSON({cmd: 'lr', code: 130});
+            // els(roomID, userID, 602);
+            return;
+        } else if ('lg' === cmd) {
+            // Host requested to lock game
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'lg', code: 141, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('state'))
+                return sendJSON({cmd: 'lg', code: 142, msg: 'State not specified'});
+            rooms[roomID].playing = msg.state;
+            sendJSON({cmd: 'lg', code: 140});
+            // els(roomID, userID, 603);
+            elg(roomID, null);
             return;
         }
         return;
@@ -211,6 +242,8 @@ wss.on('connection', function connection(ws, rq) {
         // 68 - statuses changed (by host)
         // 69 - player got voted
         // 601 - user disconnected
+        // 602 - room locked/unlocked
+        // 603 - game locked/unlocked
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
@@ -230,6 +263,17 @@ wss.on('connection', function connection(ws, rq) {
                     sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(rid)}, users[uid].ws);
             });
         });
+    }
+    function elg(roomID, exceptUID) {
+        // Codes
+        // 151 - game lock state changed
+        exceptUID = exceptUID ? exceptUID : null;
+        let playing = rooms[roomID].playing;
+        Object.keys(rooms[roomID].players).forEach(function(uid) {
+            if (uid !== exceptUID)
+                sendJSON({cmd: 'elg', code: 151, state: playing}, users[uid].ws);
+        });
+        return;
     }
     function prepareListOfUsers(roomID) {
         let obj = {
@@ -252,12 +296,13 @@ wss.on('connection', function connection(ws, rq) {
         wsock.send(JSON.stringify(json));
     }
 
-    function Room(rid, players, host, locked) {
+    function Room(rid, players, host, locked, playing) {
         if (!rid) console.warn('[Room] Invalid roomID! Something goes wrong!');
         this.roomID = rid;
         this.players = players ? players : {};
         this.host = host ? host : null;
         this.locked = locked ? locked : false;
+        this.playing = playing ? playing : false;
     }
     function User(uid, ws, name) {
         if (!uid) console.warn('[User] Invalid userID! Something goes wrong!');

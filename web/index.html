@@ -171,6 +171,8 @@
         let connected = false; // needed for determining if
         let iamhost = false;
         let iamspec = true;
+        let roomLocked = false;
+        let gameLocked = false;
         let roleSetup = {
             'Innocent': 3,
             'Sheriff': 1,
@@ -232,9 +234,6 @@
                     }
                 }
                 connected = false;
-                function updateStatus(statusMsg) {
-                    $('#p_ws_status').removeClass('hidden').html('<span class="red">'+statusMsg+'</span>');
-                }
             };
             ws.onerror = function(evt) {
                 console.log(`[ws] Error: ${evt.message}`);
@@ -278,7 +277,9 @@
                         return sendJSON({cmd: 'ls', uid: userID});
                     } else if (code === 43) {
                         // the room is locked
-                        return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
+                        // return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
+                        updateStatus('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
+                        return;
                     } else if (code !== 40)
                         return serverErrReturnedHandler(msg);
                     console.log('join room succeeded');
@@ -292,6 +293,8 @@
                     return console.log('List of players: ' + JSON.stringify(msg.data));
                 } else if ('tm' === cmd) {
                     // Response after 'change team' request
+                    if (code === 74)
+                        updateStatus('This game is in process ATM.');
                     if (code !== 70)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
@@ -320,6 +323,16 @@
                     if (code !== 120)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('lr' === cmd) {
+                    // Response after 'lock room' request
+                    if (code !== 130)
+                        return serverErrReturnedHandler(msg);
+                    return;
+                } else if ('lg' === cmd) {
+                    // Response after 'lock room' request
+                    if (code !== 140)
+                        return serverErrReturnedHandler(msg);
+                    return;
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -329,6 +342,13 @@
                     players = msg.data.players.filter(p => p.team === 'player');
                     updateGUIonCmdLS(msg.data);
                     return console.log('List of players: ' + JSON.stringify(msg.data));
+                } else if ('elg' === cmd) {
+                    // Response after 'lock game' request
+                    // code == 151 - game lock state changed
+                    if (code === 151) {
+                        lockGameGUI(msg.state);
+                        updateStatus(null);
+                    }
                 }
                 // Error handler
                 else if ('err' === cmd) {
@@ -366,9 +386,28 @@
             function showDBGGUI(txt) {
                 $('#spn_dbg_cnt').text(txt);
             }
+            function lockRoomGUI(state) {
+                if (state) $('#btn_lock_room').attr('active', 'active').addClass('active');
+                else $('#btn_lock_room').removeAttr('active').removeClass('active');
+            }
+            function lockGameGUI(state) {
+                if (state) $('#btn_lock_game').attr('active', 'active').addClass('active');
+                else $('#btn_lock_game').removeAttr('active').removeClass('active');
+            }
+            function updateStatus(statusMsg) {
+                if (statusMsg) $('#p_ws_status').removeClass('hidden').html('<span class="red">'+statusMsg+'</span>');
+                else $('#p_ws_status').addClass('hidden').html('');
+            }
 
             $('#btn_lock_room').click(function(e) {
-                sendJSON({cmd: 'lr', uid: userID, state: 1});
+                roomLocked = !roomLocked;
+                sendJSON({cmd: 'lr', uid: userID, state: roomLocked ? 1 : 0});
+                lockRoomGUI(roomLocked);
+            });
+            $('#btn_lock_game').click(function(e) {
+                gameLocked = !gameLocked;
+                sendJSON({cmd: 'lg', uid: userID, state: gameLocked ? 1 : 0});
+                lockGameGUI(gameLocked);
             });
             $('#btn_shuffle_players').click(function(e) {
                 let indices = Array.from(Array(players.length).keys());
@@ -468,13 +507,18 @@
                 $('#div_team_btns').removeClass('hidden');
                 iamhost = userID === data.host;
                 iamspec = data.players.some(p => p.uid === userID && p.team === 'spec');
-                let myRole = data.players.filter(p => p.uid === userID)[0].role;
+                let me = data.players.filter(p => p.uid === userID)[0];
+                let myRole = null;
+                let myTeam = null;
+                if (me) {
+                    myRole = me.role;
+                    myTeam = me.team;
+                }
                 if (iamhost) {
                     $('#div_host_btns').removeClass('hidden');
                 }
 
                 // Disable correct button [Spectate] or [Play]
-                let myTeam = data.players.filter(p => p.uid === userID)[0].team;
                 if (myTeam === 'spec') {
                     $('#btn_play').removeAttr('disabled');
                     $('#btn_spectate').attr('disabled', 'disabled');
