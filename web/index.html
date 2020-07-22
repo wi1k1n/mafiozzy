@@ -435,6 +435,8 @@
                     if (myRole === 'MafiaBoss' && !iamspec) {
                         txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     }
+                    if (userID === up.uid)
+                        txt = '<b>' + txt + '</b>';
                     pRow.html(txt);
                     pList.append(pRow);
                     if (myRole === 'MafiaBoss') {

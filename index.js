@@ -147,6 +147,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'kl', code: 103, msg: 'Player you r killing is not playing ATM.'});
             if (killer.role !== 'MafiaBoss')
                 return sendJSON({cmd: 'kl', code: 104, msg: 'You are not a MafiaBoss.'});
+            if (killer.status !== 'playing')
+                return sendJSON({cmd: 'kl', code: 105, msg: 'You have already been killed.'});
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             els(roomID, userID, 67);
