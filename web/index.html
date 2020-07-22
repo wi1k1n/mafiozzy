@@ -17,6 +17,7 @@
         }
         .active {
             font-weight: bold;
+            text-decoration: underline;
         }
         .bggray {
             background-color: #aaaaaa;
@@ -38,17 +39,13 @@
     </div>
     <!-- Game room container -->
     <div class="row justify-content-center hidden" id="gameContainer">
-        <div class="col-lg-4 pt-5">
+        <div class="col-lg-8 pt-5">
             <p id="p_ws_status" class="hidden"></p>
-            <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
-            <div id="div_team_btns" class="hidden">
-                <p>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_play">Play</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_spectate">Spectate</button>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_change_name">Change name</button>
-                </p>
-            </div>
             <div id="div_host_btns" class="hidden">
+                <p>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_game">🔒 game</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_room">🔒 room</button>
+                </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
@@ -56,6 +53,14 @@
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
                 </p>
             </div>
+            <div id="div_team_btns" class="hidden">
+                <p>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_play">Play</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_spectate">Spectate</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_change_name">Change name</button>
+                </p>
+            </div>
+            <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
             <div id="div_players" class="hidden">
                 <ul class="list-group" id="list_players">
                 </ul>
@@ -130,7 +135,7 @@
 <footer class="page-footer fixed-bottom pb-3 hidden" id="debugContainer">
     <div class="container">
         <h5 class="text-uppercase">Debug</h5>
-        <span class="text-muted">debug content</span>
+        <span class="text-muted" id="spn_dbg_cnt"></span>
     </div>
 </footer>
 
@@ -145,9 +150,11 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        let DEBUG = true;
-        let RID_LENGTH = 5;
-        let BIID_LENGTH = 4;
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
+        const DEBUG = true;
+        const RID_LENGTH = 5;
+        const BIID_LENGTH = 4;
 
         // Generate browser instance ID
         let biID = '';
@@ -200,7 +207,7 @@
 
             $('#p_ws_status').removeClass('hidden').text('Connecting to server...');
 
-            let ws = new WebSocket('ws://localhost:6001', biID.toString()+roomID.toString());
+            let ws = new WebSocket(HOST, biID.toString()+roomID.toString());
             ws.onopen = function(evt) {
                 connected = true;
                 console.log("[ws] Connection with server established");
@@ -354,8 +361,15 @@
                     return;
                 }
                 console.log('Server error: #' + msg.code + (msg.hasOwnProperty('msg') ? (': '+msg.msg) : ''));
+                if (DEBUG && msg.hasOwnProperty('msg')) showDBGGUI(msg.msg);
+            }
+            function showDBGGUI(txt) {
+                $('#spn_dbg_cnt').text(txt);
             }
 
+            $('#btn_lock_room').click(function(e) {
+                sendJSON({cmd: 'lr', uid: userID, state: 1});
+            });
             $('#btn_shuffle_players').click(function(e) {
                 let indices = Array.from(Array(players.length).keys());
                 for (let i = indices.length; i > 0; i--) {
@@ -490,7 +504,8 @@
                     let txt = '#' + up.number + ' ' + up.name;
                     if (iamspec || up.uid === userID ||
                         ((myRole === 'Mafia' || myRole === 'MafiaBoss') && (up.role === 'Mafia' || up.role === 'MafiaBoss')))
-                        txt += ' (' + up.role + ')';
+                        if (up.role)
+                            txt += ' (' + up.role + ')';
                     txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     if (userID === up.uid)
                         txt = '<b>' + txt + '</b>';

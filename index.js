@@ -1,16 +1,20 @@
-const webSocket = require('ws');
-const crypto = require('crypto')
+const HTTPS = false;
+const crypto = require('crypto');
+let webSocket = null;
+if (HTTPS) websocket = require('./websocketHTTPS');
+else websocket = require('./websocket');
 
+const PORT = 6001;
 const USERID_LENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
 const DEBUG = true;
 const TEAMS = ['spec', 'player'];
 
-var rooms = {};
-var users = {};
+let rooms = {};
+let users = {};
 
-
-const wss = new webSocket.Server({ port: 6001 });
+// const wss = new webSocket.Server({ port: 6001 });
+const wss = websocket.websocketServer(PORT);
 wss.on('listening', function listening() {
     console.log('Server started on port %s', this.options.port);
 });
@@ -294,3 +298,4 @@ function validateName(name) {
     console.warn('TODO: name validation');
     return name;
 }
+websocket.listen();
