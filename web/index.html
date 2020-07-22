@@ -21,6 +21,9 @@
         .bggray {
             background-color: #aaaaaa;
         }
+        .gray {
+            color: #828282;
+        }
     </style>
 </head>
 <body>
@@ -489,6 +492,8 @@
                     txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     if (userID === up.uid)
                         txt = '<b>' + txt + '</b>';
+                    if (up.dc)
+                        txt = '(?) ' + txt;
                     pRow.html(txt);
                     pList.append(pRow);
                     $('#btn_kill_player_'+up.number).click(function(e) {
@@ -500,6 +505,8 @@
                     }
                     if (up.status === 'voted')
                         $(pRow).addClass('bggray');
+                    // if (up.dc)
+                    //     $(pRow).addClass('gray');
                 });
                 $('#spectators').html(specs.substring(0, specs.length - 2));
             }

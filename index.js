@@ -81,8 +81,12 @@ wss.on('connection', function connection(ws, rq) {
 
         if ('jn' === cmd) {
             // Join room request
-            if (userID in rooms[roomID].players)
-                return sendJSON({cmd: 'jn', code: 42, msg: 'Already in room'});
+            if (userID in rooms[roomID].players) {
+                rooms[roomID].players[userID].dc = false;
+                sendJSON({cmd: 'jn', code: 42, msg: 'Already in room'});
+                els(roomID, userID, 62);
+                return;
+            }
             if (rooms[roomID].locked)
                 return sendJSON({cmd: 'jn', code: 43, msg: 'This room is locked ATM'});
             rooms[roomID].players[userID] = new Player(userID, 'spec', -1, null);
@@ -186,7 +190,12 @@ wss.on('connection', function connection(ws, rq) {
         }
         return;
     });
-
+    ws.on('close', function(code, reason) {
+        if (connectionID in rooms[roomID].players) {
+            rooms[roomID].players[connectionID].dc = true;
+            els(null, connectionID, 601);
+        }
+    });
     function els(roomID, exceptUID, code) {
         // Codes:
         // 62 - user joined
@@ -197,6 +206,7 @@ wss.on('connection', function connection(ws, rq) {
         // 67 - player killed
         // 68 - statuses changed (by host)
         // 69 - player got voted
+        // 601 - user disconnected
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
@@ -259,9 +269,9 @@ wss.on('connection', function connection(ws, rq) {
         this.role = role ? role : null;
         this.number = number ? number : -1;
         this.status = status ? status : 'playing';
+        this.dc = false;
     }
 });
-
 function getConnectionHash(headers) {
     let postfix = '';
     if (headers.hasOwnProperty('sec-websocket-protocol'))
