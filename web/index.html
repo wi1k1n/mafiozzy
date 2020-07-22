@@ -275,6 +275,11 @@
                     if (code !== 80)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('cr' === cmd) {
+                    // Response after 'change roles' request
+                    if (code !== 90)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -323,6 +328,43 @@
                 }
                 sendJSON({cmd: 'cn', uid: userID, data: players});
             });
+            $('#btn_shuffle_roles').click(function(e) {
+                // Warn user that roles number is different from players number
+                if (Object.values(roleSetup).reduce((e, a) => a + e) !== players.length) {
+                    if (!prompt('Number of roles is different from players number. Press \'OK\' to continue', 'I know'))
+                        return;
+                }
+                // Get list of indices with correct # of repetitions
+                let roleNames = Object.keys(roleSetup);
+                let rolesPDF = Object.values(roleSetup);
+                let rolesCDF = [];
+                let cnt = 0;
+                let crs = 0;
+                while (crs < rolesPDF.length) {
+                    if (!rolesPDF[crs]) {
+                        crs++;
+                        continue;
+                    }
+                    if (rolesPDF[crs] === cnt) {
+                        cnt = 0;
+                        crs++;
+                    } else {
+                        rolesCDF.push(crs % rolesPDF.length);
+                        cnt++;
+                    }
+                }
+                // Handle if # of roles < # of players
+                let indExtend = 0;
+                while (rolesCDF.length < players.length)
+                    rolesCDF.push(rolesCDF[indExtend++]);
+                // Shuffle and assign roles
+                for (let i = players.length; i > 0; i--) {
+                    let indCDF = Math.floor(Math.random() * i);
+                    let indName = rolesCDF.splice(indCDF, 1)[0]
+                    players[i - 1].role = roleNames[indName];
+                }
+                sendJSON({cmd: 'cr', uid: userID, data: players});
+            });
             $('#btn_play').click(function(e) {
                 if (!$(this).attr('disabled')) {
                     sendJSON({cmd: 'tm', uid: userID, team: 'player'});
@@ -346,7 +388,10 @@
                 // Handle visibility of list containers
                 $('#div_players').removeClass('hidden');
                 $('#div_team_btns').removeClass('hidden');
-                if (userID === data.host) {
+                let iamhost = userID === data.host;
+                let iamspec = data.players.some(p => p.uid === userID && p.team === 'spec');
+                let myRole = data.players.filter(p => p.uid === userID)[0].role;
+                if (iamhost) {
                     $('#div_host_btns').removeClass('hidden');
                 }
 
@@ -378,7 +423,11 @@
                 players.sort((a, b) => a.number < b.number ? -1 : (a.number > b.number ? 1 : 0));
                 players.forEach(function(up) {
                     let pRow = $('#div_templates .template_player_row').first().clone();
-                    pRow.text('#' + up.number + ' ' + up.name);
+                    let txt = '#' + up.number + ' ' + up.name;
+                    if (iamspec || up.uid === userID ||
+                        ((myRole === 'Mafia' || myRole === 'MafiaBoss') && (up.role === 'Mafia' || up.role === 'MafiaBoss')))
+                        txt += ' (' + up.role + ')';
+                    pRow.text(txt);
                     pList.append(pRow);
                 });
                 $('#spectators').html(specs.substring(0, specs.length - 2));

@@ -123,6 +123,18 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'cn', code: 80});
             els(roomID, userID, 65);
             return;
+        } else if ('cr' === cmd) {
+            // Change roles of players requested
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'cr', code: 91, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('data'))
+                return sendJSON({cmd: 'cr', code: 92, msg: 'Data not specified'});
+            msg.data.forEach(function(p) {
+                rooms[roomID].players[p.uid].role = p.role;
+            });
+            sendJSON({cmd: 'cr', code: 90});
+            els(roomID, userID, 66);
+            return;
         }
         return;
     });
@@ -132,6 +144,8 @@ wss.on('connection', function connection(ws, rq) {
         // 62 - user joined
         // 63 - name changed
         // 64 - team changed
+        // 65 - numbers changed
+        // 66 - roles changed
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
