@@ -41,8 +41,7 @@
             <div id="div_host_btns" class="hidden">
                 <p>
                     <button type="button" class="btn btn-info" id="btn_shuffle_players">🎲 players</button>
-                    <button type="button" class="btn" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
-                    <button type="button" class="btn btn-warning" id="btn_shuffle_roles">🎲 roles</button>
+                    <button type="button" class="btn btn-warning" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
                 </p>
             </div>
             <div id="div_players" class="hidden">
@@ -68,44 +67,45 @@
                     <div class="form-group row">
                         <label for="inp_role_innocent" class="col-4 col-form-label">Innocent</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_innocent">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" step="1" id="inp_role_innocent">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_sheriff" class="col-4 col-form-label">Sheriff</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_sheriff">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_sheriff">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_mafia" class="col-4 col-form-label">Mafia</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_mafia">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafia">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_mafboss" class="col-4 col-form-label">Mafia Boss</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_mafboss">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafboss">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_manniac">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>
                         <div class="col-4">
-                            <input class="form-control" type="number" value="0" id="inp_role_doctor">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="btn_modal_roles_save">Save changes</button>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary mr-auto" id="btn_modal_roles_save">Save changes</button>
+                <button type="button" class="btn btn-warning" id="btn_shuffle_roles">🎲 roles</button>
+                <button type="button" class="btn btn-secondary" id="btn_modal_close" data-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -125,10 +125,13 @@
 <!-- Bootstrap core JavaScript -->
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+<script src="js/lib/bootstrap-input-spinner.js"></script>
 <script>
     $(window).on('hashchange', function(e) {
         location.reload();
     });
+    $('.inp_role_setup_number').inputSpinner();
+    $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
         let DEBUG = true;
         let RID_LENGTH = 5;
@@ -335,10 +338,13 @@
             });
             $('#btn_shuffle_roles').click(function(e) {
                 // Warn user that roles number is different from players number
-                if (Object.values(roleSetup).reduce((e, a) => a + e) !== players.length) {
+                let rs = getRolesPDF();
+                if (Object.values(rs).reduce((e, a) => a + e) !== players.length) {
                     if (!prompt('Number of roles is different from players number. Press \'OK\' to continue', 'I know'))
                         return;
                 }
+                $('#modal_roles').modal('hide');
+                roleSetup = rs;
                 // Get list of indices with correct # of repetitions
                 let roleNames = Object.keys(roleSetup);
                 let rolesPDF = Object.values(roleSetup);
@@ -381,14 +387,28 @@
                 }
             });
             $('#btn_modal_roles_save').click(function(e) {
-                roleSetup['Innocent'] = parseInt($('#inp_role_innocent').val());
-                roleSetup['Sheriff'] = parseInt($('#inp_role_sheriff').val());
-                roleSetup['Mafia'] = parseInt($('#inp_role_mafia').val());
-                roleSetup['MafiaBoss'] = parseInt($('#inp_role_mafboss').val());
-                roleSetup['Manniac'] = parseInt($('#inp_role_manniac').val());
-                roleSetup['Doctor'] = parseInt($('#inp_role_doctor').val());
+                roleSetup = getRolesPDF();
                 $('#modal_roles').modal('hide');
             });
+            $('#btn_modal_close').click(function(e) { setRolesPDF(roleSetup); });
+            function getRolesPDF() {
+                let rs = {};
+                rs['Innocent'] = parseInt($('#inp_role_innocent').val());
+                rs['Sheriff'] = parseInt($('#inp_role_sheriff').val());
+                rs['Mafia'] = parseInt($('#inp_role_mafia').val());
+                rs['MafiaBoss'] = parseInt($('#inp_role_mafboss').val());
+                rs['Manniac'] = parseInt($('#inp_role_manniac').val());
+                rs['Doctor'] = parseInt($('#inp_role_doctor').val());
+                return rs;
+            }
+            function setRolesPDF(rs) {
+                $('#inp_role_innocent').val(parseInt(rs['Innocent']));
+                $('#inp_role_sheriff').val(parseInt(rs['Sheriff']));
+                $('#inp_role_mafia').val(parseInt(rs['Mafia']));
+                $('#inp_role_mafboss').val(parseInt(rs['MafiaBoss']));
+                $('#inp_role_manniac').val(parseInt(rs['Manniac']));
+                $('#inp_role_doctor').val(parseInt(rs['Doctor']));
+            }
             function updateGUIonCmdLS(data) {
                 // Handle visibility of list containers
                 $('#div_players').removeClass('hidden');
@@ -470,6 +490,29 @@
             return ret;
         }
     });
+    document.addEventListener('wheel', function(e) {
+        let focusedEl = $(':focus');
+        if (!focusedEl.hasClass('inp_role_setup_number'))
+            return;
+
+        let max = focusedEl.attr('max'); max = max ? max : 10000;
+        let min = focusedEl.attr('min'); min = min ? min : 0;
+
+        let value = parseInt(focusedEl.val(), 10);
+        if (e.deltaY < 0) {
+            value++;
+            if (max !== null && value > max)
+                value = max;
+        } else {
+            value--;
+            if (min !== null && value < min)
+                value = min;
+        }
+        focusedEl.val(value);
+
+        e.preventDefault();
+        return false;
+    }, {passive: false});
 </script>
 </body>
 </html>
