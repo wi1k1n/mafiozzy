@@ -1,13 +1,16 @@
-const HTTPS = false;
+const argv = require('optimist')
+    .usage('Usage: $0 -port [num] -wss -debug')
+    .argv;
 const crypto = require('crypto');
+
 let webSocket = null;
-if (HTTPS) websocket = require('./websocketHTTPS');
+if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
 
-const PORT = 6001;
+const PORT = argv.port ? parseInt(argv.port) : 6001;
 const USERID_LENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
-const DEBUG = true;
+const DEBUG = argv.debug ? true : false;
 const TEAMS = ['spec', 'player'];
 
 let rooms = {};
@@ -16,7 +19,7 @@ let users = {};
 // const wss = new webSocket.Server({ port: 6001 });
 const wss = websocket.websocketServer(PORT);
 wss.on('listening', function listening() {
-    console.log('Server started on port %s', this.options.port);
+    console.log('Server started on port %s', PORT);
 });
 
 wss.on('connection', function connection(ws, rq) {
@@ -292,7 +295,7 @@ wss.on('connection', function connection(ws, rq) {
     function sendJSON(json, wsock) {
         wsock = wsock ? wsock : ws;
         json['timestamp'] = new Date().getTime();
-        console.log('[dbg] >> ' + JSON.stringify(json));
+        if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(json));
         wsock.send(JSON.stringify(json));
     }
 

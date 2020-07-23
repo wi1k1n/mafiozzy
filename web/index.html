@@ -150,9 +150,9 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
-        const DEBUG = true;
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
+        const DEBUG = false;
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
 
@@ -290,7 +290,7 @@
                         return serverErrReturnedHandler(msg);
                     players = msg.data.players.filter(p => p.team === 'player');
                     updateGUIonCmdLS(msg.data);
-                    return console.log('List of players: ' + JSON.stringify(msg.data));
+                    return; // console.log('List of players: ' + JSON.stringify(msg.data));
                 } else if ('tm' === cmd) {
                     // Response after 'change team' request
                     if (code === 74)
