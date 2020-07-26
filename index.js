@@ -189,6 +189,9 @@ wss.on('connection', function connection(ws, rq) {
                     // There is at least 1 more Mafia with lower number value
                     return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
             }
+
+            if (!rooms[roomID].isnight)
+                return sendJSON({cmd: 'kl', code: 1091, msg: 'You can only kill in the night'});
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             els(roomID, userID, 67);
@@ -245,6 +248,17 @@ wss.on('connection', function connection(ws, rq) {
             // els(roomID, userID, 603);
             elg(roomID, null);
             return;
+        } else if ('tn' === cmd) {
+            // Host requested to toggle night
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'tn', code: 161, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('state'))
+                return sendJSON({cmd: 'tn', code: 162, msg: 'State not specified'});
+            rooms[roomID].isnight = msg.state;
+            sendJSON({cmd: 'tn', code: 160});
+            // els(roomID, userID, 603);
+            etn(roomID, null);
+            return;
         }
         return;
     });
@@ -295,6 +309,17 @@ wss.on('connection', function connection(ws, rq) {
         Object.keys(rooms[roomID].players).forEach(function(uid) {
             if (uid !== exceptUID)
                 sendJSON({cmd: 'elg', code: 151, state: playing}, users[uid].ws);
+        });
+        return;
+    }
+    function etn(roomID, exceptUID) {
+        // Codes
+        // 171 - isnight state changed
+        exceptUID = exceptUID ? exceptUID : null;
+        let isnight = rooms[roomID].isnight;
+        Object.keys(rooms[roomID].players).forEach(function(uid) {
+            if (uid !== exceptUID)
+                sendJSON({cmd: 'elg', code: 171, state: isnight}, users[uid].ws);
         });
         return;
     }
