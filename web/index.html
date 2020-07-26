@@ -150,9 +150,9 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        const HOST = 'wss://infiny.ddns.net:6001';
-        // const HOST = 'ws://localhost:6001';
-        const DEBUG = false;
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
+        const DEBUG = true;
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
 
@@ -575,7 +575,7 @@
                 let me = players.filter(p => p.uid === userID)[0];
                 if ($('#btn_vote').hasClass('active') && iamhost)
                     return sendJSON({cmd: 'vt', uid: userID, puid: puid});
-                if (me.role === 'MafiaBoss' && !iamspec)
+                if (['MafiaBoss', 'Mafia'].includes(me.role) && !iamspec)
                     return sendJSON({cmd: 'kl', uid: userID, puid: puid});
             }
         }

@@ -152,23 +152,43 @@ wss.on('connection', function connection(ws, rq) {
             return;
         } else if ('kl' === cmd) {
             // Player requested to kill player
-            if (!(userID in rooms[roomID].players)) {
+            if (!(userID in rooms[roomID].players))
                 return sendJSON({cmd: 'kl', code: 107, msg: 'You are not in the room'});
-            }
             let killer = rooms[roomID].players[userID];
             if (killer.team !== 'player')
                 return sendJSON({cmd: 'kl', code: 101, msg: 'You are not playing ATM.'});
+            if (killer.status !== 'playing')
+                return sendJSON({cmd: 'kl', code: 105, msg: 'You have already been killed.'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'kl', code: 102, msg: 'puid field not specified'});
             let killed = rooms[roomID].players[msg.puid];
             if (killed.team !== 'player')
                 return sendJSON({cmd: 'kl', code: 103, msg: 'Player you r killing is not playing ATM.'});
-            if (killer.role !== 'MafiaBoss')
-                return sendJSON({cmd: 'kl', code: 104, msg: 'You are not a MafiaBoss.'});
-            if (killer.status !== 'playing')
-                return sendJSON({cmd: 'kl', code: 105, msg: 'You have already been killed.'});
             if (killed.status !== 'playing')
                 return sendJSON({cmd: 'kl', code: 106, msg: 'Player you r killing has already been killed.'});
+
+            let mbs = Object.keys(rooms[roomID].players).filter(puid => {
+                let cp = rooms[roomID].players[puid];
+                return cp.role === 'MafiaBoss' && cp.status !== 'killed';
+            });
+            let mfs = Object.keys(rooms[roomID].players).filter(puid => {
+                let cp = rooms[roomID].players[puid];
+                return cp.role === 'Mafia' && cp.status !== 'killed';
+            });
+
+            if (killer.role !== 'MafiaBoss') {
+                if (killer.role !== 'Mafia')
+                    return sendJSON({cmd: 'kl', code: 108, msg: 'Your are not Mafia'});
+                if (mbs.length > 0)
+                    // MafiaBoss is still alive
+                    return sendJSON({cmd: 'kl', code: 104, msg: 'Mafia Boss is still alive'});
+                if (mfs.some(puid => {
+                    let cp = rooms[roomID].players[puid];
+                    return cp.role === 'Mafia' && cp.number < rooms[roomID].players[userID].number;
+                }))
+                    // There is at least 1 more Mafia with lower number value
+                    return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
+            }
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             els(roomID, userID, 67);
