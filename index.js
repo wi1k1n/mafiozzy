@@ -169,7 +169,7 @@ wss.on('connection', function connection(ws, rq) {
 
             let mbs = Object.keys(rooms[roomID].players).filter(puid => {
                 let cp = rooms[roomID].players[puid];
-                return cp.role === 'MafiaBoss' && cp.status !== 'killed';
+                return cp.role === 'MafiaBoss' && cp.status === 'playing';
             });
             let mfs = Object.keys(rooms[roomID].players).filter(puid => {
                 let cp = rooms[roomID].players[puid];
