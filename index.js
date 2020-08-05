@@ -271,6 +271,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'bc', code: 186, msg: 'You can only check at night on mafia boss turn'});
             if (rooms[roomID].players[userID].role !== 'MafiaBoss')
                 return sendJSON({cmd: 'bc', code: 185, msg: 'You are not the MafiaBoss'});
+            if (rooms[roomID].players[userID].status !== 'playing')
+                return sendJSON({cmd: 'bc', code: 187, msg: 'You have already been killed.'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'bc', code: 182, msg: 'puid field not specified'});
             let pl = rooms[roomID].players[msg.puid];
@@ -289,6 +291,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'sc', code: 196, msg: 'You can only check at night on sheriff turn'});
             if (rooms[roomID].players[userID].role !== 'Sheriff')
                 return sendJSON({cmd: 'sc', code: 195, msg: 'You are not the Sheriff'});
+            if (rooms[roomID].players[userID].status !== 'playing')
+                return sendJSON({cmd: 'sc', code: 197, msg: 'You have already been killed.'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'sc', code: 192, msg: 'puid field not specified'});
             let pl = rooms[roomID].players[msg.puid];
