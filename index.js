@@ -190,10 +190,13 @@ wss.on('connection', function connection(ws, rq) {
                     return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
             }
 
-            if (!rooms[roomID].isnight)
-                return sendJSON({cmd: 'kl', code: 1091, msg: 'You can only kill in the night'});
+            if (rooms[roomID].nightMode !== 1)
+                return sendJSON({cmd: 'kl', code: 1091, msg: 'You can only kill at night on mafia turn'});
+            if (rooms[roomID].nightActionPerformed)
+                return sendJSON({cmd: 'kl', code: 1092, msg: 'You have already made an assassination this night'});
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
+            rooms[roomID].nightActionPerformed = true;
             els(roomID, userID, 67);
             return;
         } else if ('cs' === cmd) {
@@ -249,15 +252,52 @@ wss.on('connection', function connection(ws, rq) {
             elg(roomID, null);
             return;
         } else if ('tn' === cmd) {
-            // Host requested to toggle night
+            // Host requested to toggle night mode: mafia/boss/comissar
             if (rooms[roomID].host !== userID)
                 return sendJSON({cmd: 'tn', code: 161, msg: 'You are not the host of room'});
             if (!msg.hasOwnProperty('state'))
                 return sendJSON({cmd: 'tn', code: 162, msg: 'State not specified'});
-            rooms[roomID].isnight = msg.state;
+            rooms[roomID].nightMode = msg.state;
+            rooms[roomID].nightActionPerformed = false;
             sendJSON({cmd: 'tn', code: 160});
             // els(roomID, userID, 603);
             etn(roomID, null);
+            return;
+        } else if ('bc' === cmd) {
+            // Player made a 'boss check' request
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'bc', code: 181, msg: 'You are not in the room'});
+            if (rooms[roomID].nightMode !== 2)
+                return sendJSON({cmd: 'bc', code: 186, msg: 'You can only check at night on mafia boss turn'});
+            if (rooms[roomID].players[userID].role !== 'MafiaBoss')
+                return sendJSON({cmd: 'bc', code: 185, msg: 'You are not the MafiaBoss'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'bc', code: 182, msg: 'puid field not specified'});
+            let pl = rooms[roomID].players[msg.puid];
+            if (pl.team !== 'player')
+                return sendJSON({cmd: 'bc', code: 183, msg: 'Player you r checking is not playing ATM.'});
+            if (rooms[roomID].nightActionPerformed)
+                return sendJSON({cmd: 'bc', code: 184, msg: 'You have already made your check this night'});
+            sendJSON({cmd: 'bc', code: 180, role: pl.role === 'Sheriff'});
+            rooms[roomID].nightActionPerformed = true;
+            return;
+        } else if ('sc' === cmd) {
+            // Player made a 'sheriff check' request
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'sc', code: 191, msg: 'You are not in the room'});
+            if (rooms[roomID].nightMode !== 3)
+                return sendJSON({cmd: 'sc', code: 196, msg: 'You can only check at night on sheriff turn'});
+            if (rooms[roomID].players[userID].role !== 'Sheriff')
+                return sendJSON({cmd: 'sc', code: 195, msg: 'You are not the Sheriff'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'sc', code: 192, msg: 'puid field not specified'});
+            let pl = rooms[roomID].players[msg.puid];
+            if (pl.team !== 'player')
+                return sendJSON({cmd: 'sc', code: 193, msg: 'Player you r checking is not playing ATM.'});
+            if (rooms[roomID].nightActionPerformed)
+                return sendJSON({cmd: 'sc', code: 194, msg: 'You have already made your check this night'});
+            sendJSON({cmd: 'sc', code: 190, role: ['MafiaBoss', 'Mafia'].includes(pl.role)});
+            rooms[roomID].nightActionPerformed = true;
             return;
         }
         return;
@@ -314,12 +354,12 @@ wss.on('connection', function connection(ws, rq) {
     }
     function etn(roomID, exceptUID) {
         // Codes
-        // 171 - isnight state changed
+        // 171 - noghtMode state changed
         exceptUID = exceptUID ? exceptUID : null;
-        let isnight = rooms[roomID].isnight;
+        let nightMode = rooms[roomID].nightMode;
         Object.keys(rooms[roomID].players).forEach(function(uid) {
             if (uid !== exceptUID)
-                sendJSON({cmd: 'elg', code: 171, state: isnight}, users[uid].ws);
+                sendJSON({cmd: 'elg', code: 171, state: nightMode}, users[uid].ws);
         });
         return;
     }
@@ -351,6 +391,8 @@ wss.on('connection', function connection(ws, rq) {
         this.host = host ? host : null;
         this.locked = locked ? locked : false;
         this.playing = playing ? playing : false;
+        this.nightMode = 0;
+        this.nightActionPerformed = false;  // Flag not to allow to spam checks and kills
     }
     function User(uid, ws, name) {
         if (!uid) console.warn('[User] Invalid userID! Something goes wrong!');

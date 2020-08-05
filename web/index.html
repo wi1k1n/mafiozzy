@@ -45,12 +45,14 @@
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_lock_game">🔒 game</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_lock_room">🔒 room</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night">Night</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com">Sheriff Check</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night">Assassination</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss">Boss Check</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
-                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">Setup roles</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">Reset</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">⚙ roles</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">↺ Reset</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
                 </p>
             </div>
@@ -174,7 +176,7 @@
         let iamspec = true;
         let roomLocked = false;
         let gameLocked = false;
-        let isNight = false;
+        let nightTurn = 0;
         let roleSetup = {
             'Innocent': 3,
             'Sheriff': 1,
@@ -335,6 +337,18 @@
                     if (code !== 140)
                         return serverErrReturnedHandler(msg);
                     return;
+                } else if ('bc' === cmd) {
+                    // Response after 'boss check' request
+                    if (code !== 180)
+                        return serverErrReturnedHandler(msg);
+                    alert(msg.role ? 'Yes, this player IS the Sheriff' : 'Nope, this player is NOT the Sheriff');
+                    return;
+                } else if ('sc' === cmd) {
+                    // Response after 'sheriff check' request
+                    if (code !== 190)
+                        return serverErrReturnedHandler(msg);
+                    alert(msg.role ? 'Yes, this player IS the mafia' : 'Nope, this player is NOT the mafia');
+                    return;
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -352,10 +366,12 @@
                         updateStatus(null);
                     }
                 } else if ('etn' === cmd) {
-                    // Response after 'lock game' request
-                    // code == 171 - game lock state changed
+                    // Response after 'toggle night mode' request
+                    // code == 171 - night mode changed
                     if (code === 171) {
-                        toggleNightGUI(msg.state);
+                        if (msg.state === 1) toggleNightGUI(msg.state);
+                        else if (msg.state === 2) toggleBossGUI(msg.state);
+                        else if (msg.state === 3) toggleComGUI(msg.state);
                         updateStatus(null);
                     }
                 }
@@ -403,9 +419,22 @@
                 if (state) $('#btn_lock_game').attr('active', 'active').addClass('active');
                 else $('#btn_lock_game').removeAttr('active').removeClass('active');
             }
+            function deactivateNightBtns() {
+                $('#btn_toggle_night').removeAttr('active').removeClass('active');
+                $('#btn_toggle_boss').removeAttr('active').removeClass('active');
+                $('#btn_toggle_com').removeAttr('active').removeClass('active');
+            }
             function toggleNightGUI(state) {
+                deactivateNightBtns();
                 if (state) $('#btn_toggle_night').attr('active', 'active').addClass('active');
-                else $('#btn_toggle_night').removeAttr('active').removeClass('active');
+            }
+            function toggleBossGUI(state) {
+                deactivateNightBtns();
+                if (state) $('#btn_toggle_boss').attr('active', 'active').addClass('active');
+            }
+            function toggleComGUI(state) {
+                deactivateNightBtns();
+                if (state) $('#btn_toggle_com').attr('active', 'active').addClass('active');
             }
             function updateStatus(statusMsg) {
                 if (statusMsg) $('#p_ws_status').removeClass('hidden').html('<span class="red">'+statusMsg+'</span>');
@@ -423,9 +452,19 @@
                 lockGameGUI(gameLocked);
             });
             $('#btn_toggle_night').click(function(e) {
-                isNight = !isNight;
-                sendJSON({cmd: 'tn', uid: userID, state: isNight ? 1 : 0});
-                toggleNightGUI(isNight);
+                nightTurn = nightTurn === 1 ? 0 : 1;
+                sendJSON({cmd: 'tn', uid: userID, state: nightTurn});
+                toggleNightGUI(nightTurn);
+            });
+            $('#btn_toggle_boss').click(function(e) {
+                nightTurn = nightTurn === 2 ? 0 : 2;
+                sendJSON({cmd: 'tn', uid: userID, state: nightTurn});
+                toggleBossGUI(nightTurn);
+            });
+            $('#btn_toggle_com').click(function(e) {
+                nightTurn = nightTurn === 3 ? 0 : 3;
+                sendJSON({cmd: 'tn', uid: userID, state: nightTurn});
+                toggleComGUI(nightTurn);
             });
             $('#btn_shuffle_players').click(function(e) {
                 let indices = Array.from(Array(players.length).keys());
@@ -593,8 +632,15 @@
                 let me = players.filter(p => p.uid === userID)[0];
                 if ($('#btn_vote').hasClass('active') && iamhost)
                     return sendJSON({cmd: 'vt', uid: userID, puid: puid});
-                if (['MafiaBoss', 'Mafia'].includes(me.role) && !iamspec)
+                if (['Mafia'].includes(me.role) && !iamspec)
                     return sendJSON({cmd: 'kl', uid: userID, puid: puid});
+                if (['MafiaBoss'].includes(me.role) && !iamspec) {
+                    sendJSON({cmd: 'kl', uid: userID, puid: puid});
+                    return sendJSON({cmd: 'bc', uid: userID, puid: puid});
+                }
+                if (['Sheriff'].includes(me.role) && !iamspec) {
+                    return sendJSON({cmd: 'sc', uid: userID, puid: puid});
+                }
             }
         }
 
