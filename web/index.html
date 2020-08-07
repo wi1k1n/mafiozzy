@@ -54,6 +54,7 @@
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">⚙ roles</button>
                     <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">↺ Reset</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_hide">☐ hide players</button>
                 </p>
             </div>
             <div id="div_team_btns" class="hidden">
@@ -523,6 +524,16 @@
             $('#btn_vote').click(function(e) {
                 if ($(this).hasClass('active')) $(this).removeClass('active');
                 else $(this).addClass('active');
+            });
+            $('#btn_hide').click(function(e) {
+                if ($(this).hasClass('active')){
+                    $(this).removeClass('active');
+                    $('#div_players').removeClass('hidden');
+                }
+                else {
+                    $(this).addClass('active');
+                    $('#div_players').addClass('hidden');
+                }
             });
             $('#btn_play').click(function(e) {
                 if (!$(this).attr('disabled')) {
