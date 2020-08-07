@@ -153,8 +153,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
         const DEBUG = true;
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
@@ -614,7 +614,8 @@
                         txt = '(?) ' + txt;
                     pRow.html(txt);
                     pList.append(pRow);
-                    $('#btn_kill_player_'+up.number).click(function(e) {
+                    // $('#btn_kill_player_'+up.number).click(function(e) {
+                    pRow.click(function(e) {
                         playerClicked(e, up.uid);
                     });
                     if (up.status === 'killed') {
