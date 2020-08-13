@@ -43,26 +43,40 @@
             <p id="p_ws_status" class="hidden"></p>
             <div id="div_host_btns" class="hidden">
                 <p>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_game">🔒 game</button>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_room">🔒 room</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com">Sheriff Check</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night">Assassination</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss">Boss Check</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_game"
+                            title="Disable ability to change mode 'Play' -> 'Spectate'">🔒 game</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_lock_room"
+                            title="Disable ability to enter the room">🔒 room</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com"
+                            title="Let the sheriff to make his check">Sheriff Check</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night"
+                            title="Let mafia to kill player">Assassination</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss"
+                            title="Let mafia boss to make his check">Boss Check</button>
                 </p>
                 <p>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
-                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup">⚙ roles</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player">kick player</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">↺ Reset</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_hide">☐ hide players</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players"
+                            title="Shuffle player numbers">🎲 players</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup"
+                            title="Shuffle and give roles to the players">⚙ roles</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player"
+                            title="Click on player to kick him if this enabled">kick player</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
+                            title="Click to unmark all players (both killed and voted)">↺ Reset</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
+                            title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_hide"
+                            title="Click show/hide the list of players">☐ hide players</button>
                 </p>
             </div>
             <div id="div_team_btns" class="hidden">
                 <p>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_play">Play</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_spectate">Spectate</button>
-                    <button type="button" class="btn btn-info btn-sm" id="btn_change_name">Change name</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_play"
+                            title="Move from spectators to player list">Play</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_spectate"
+                            title="Move from player list to spectators">Spectate</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_change_name"
+                            title="Click to change displayed name">Change name</button>
                 </p>
             </div>
             <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
