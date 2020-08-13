@@ -312,6 +312,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'dl', code: 202, msg: 'You are not the host of room'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'dl', code: 203, msg: 'puid field not specified'});
+            if (rooms[roomID].host === msg.puid)
+                rooms[roomID].locked = false;
             sendJSON({cmd: 'dl', code: 204, msg: 'You have been kicked from this room!'}, users[msg.puid].ws);
             users[msg.puid].ws.close(4002, 'You have been kicked from this room!');
             delete users[msg.puid];
