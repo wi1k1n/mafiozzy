@@ -51,7 +51,7 @@
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
-                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup" data-toggle="modal" data-target="#modal_roles">⚙ roles</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup">⚙ roles</button>
                     <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">↺ Reset</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_hide">☐ hide players</button>
@@ -474,6 +474,22 @@
                     players[i - 1].number = indices.splice(ind, 1)[0] + 1;
                 }
                 sendJSON({cmd: 'cn', uid: userID, data: players});
+            });
+            $('#btn_roles_setup').click(function(e) {
+                let rs = {};
+                Object.assign(rs, roleSetup);
+                Object.keys(rs).forEach(function(e) { rs[e] = 0; });
+                let l = players.length;
+                if (Object.values(rs).reduce((e, a) => a + e) !== l && l > 3 && l < 13) {
+                    rs['Sheriff'] = 1;
+                    rs['MafiaBoss'] = (l === 6 || l === 7) ? 0 : 1;
+                    rs['Innocent'] = l - 3;
+                    if (l < 6) rs['Innocent'] = l - 2;
+                    else if (l > 10) rs['Innocent'] = l - 5;
+                    else rs['Innocent'] = 6;
+                    setRolesPDF(rs);
+                }
+                $('#modal_roles').modal();
             });
             $('#btn_shuffle_roles').click(function(e) {
                 // Warn user that roles number is different from players number
