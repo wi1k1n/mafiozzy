@@ -483,10 +483,14 @@
                 if (Object.values(rs).reduce((e, a) => a + e) !== l && l > 3 && l < 13) {
                     rs['Sheriff'] = 1;
                     rs['MafiaBoss'] = (l === 6 || l === 7) ? 0 : 1;
-                    rs['Innocent'] = l - 3;
                     if (l < 6) rs['Innocent'] = l - 2;
-                    else if (l > 10) rs['Innocent'] = l - 5;
-                    else rs['Innocent'] = 6;
+                    else if (l < 10) rs['Innocent'] = l - 3;
+                    else if (l < 11) rs['Innocent'] = 6;
+                    else rs['Innocent'] = l - 5;
+                    if (l < 6) rs['Mafia'] = 0;
+                    else if (l < 7) rs['Mafia'] = 2;
+                    else if (l < 12) rs['Mafia'] = Math.abs(l - 8.5) + 0.5;
+                    else rs['Mafia'] = 3;
                     setRolesPDF(rs);
                 }
                 $('#modal_roles').modal();
