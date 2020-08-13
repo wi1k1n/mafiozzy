@@ -52,6 +52,7 @@
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players">🎲 players</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup">⚙ roles</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player">kick player</button>
                     <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset">↺ Reset</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote">✓ vote</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_hide">☐ hide players</button>
@@ -350,6 +351,11 @@
                         return serverErrReturnedHandler(msg);
                     alert(msg.role ? 'Yes, this player IS the mafia' : 'Nope, this player is NOT the mafia');
                     return;
+                } else if ('dl' === cmd) {
+                    // Response after 'kick player' request
+                    if (code !== 200)
+                        return serverErrReturnedHandler(msg);
+                    return sendJSON({cmd: 'ls', uid: userID});
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -381,7 +387,8 @@
                     if (code === 1) {
                         // Server does not know our userID. Request new one
                         localStorage.removeItem('uid');
-                        sendJSON({cmd: 'id'});
+                        // sendJSON({cmd: 'id'});
+                        console.log('Error: ' + JSON.stringify(msg));
                     }
                 }
                 //console.log(`[ws] Received: ${evt.data}`);
@@ -543,7 +550,17 @@
             });
             $('#btn_vote').click(function(e) {
                 if ($(this).hasClass('active')) $(this).removeClass('active');
-                else $(this).addClass('active');
+                else {
+                    $(this).addClass('active');
+                    $('#btn_delete_player').removeClass('active');
+                }
+            });
+            $('#btn_delete_player').click(function(e) {
+                if ($(this).hasClass('active')) $(this).removeClass('active');
+                else {
+                    $(this).addClass('active');
+                    $('#btn_vote').removeClass('active');
+                }
             });
             $('#btn_hide').click(function(e) {
                 if ($(this).hasClass('active')){
@@ -664,6 +681,8 @@
                 let me = players.filter(p => p.uid === userID)[0];
                 if ($('#btn_vote').hasClass('active') && iamhost)
                     return sendJSON({cmd: 'vt', uid: userID, puid: puid});
+                if ($('#btn_delete_player').hasClass('active') && iamhost)
+                    return sendJSON({cmd: 'dl', uid: userID, puid: puid});
                 if (['Mafia'].includes(me.role) && !iamspec)
                     return sendJSON({cmd: 'kl', uid: userID, puid: puid});
                 if (['MafiaBoss'].includes(me.role) && !iamspec) {

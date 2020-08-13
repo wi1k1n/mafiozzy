@@ -303,6 +303,22 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'sc', code: 190, role: ['MafiaBoss', 'Mafia'].includes(pl.role)});
             rooms[roomID].nightActionPerformed = true;
             return;
+        } else if ('dl' === cmd) {
+            // Player requested to kill player
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'dl', code: 201, msg: 'You are not in the room'});
+            let voter = rooms[roomID].players[userID];
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'dl', code: 202, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'dl', code: 203, msg: 'puid field not specified'});
+            sendJSON({cmd: 'dl', code: 204, msg: 'You have been kicked from this room!'}, users[msg.puid].ws);
+            users[msg.puid].ws.close(4002, 'You have been kicked from this room!');
+            delete users[msg.puid];
+            delete rooms[roomID].players[msg.puid];
+            sendJSON({cmd: 'dl', code: 200});
+            els(roomID, userID, 604);
+            return;
         }
         return;
     });
@@ -325,6 +341,7 @@ wss.on('connection', function connection(ws, rq) {
         // 601 - user disconnected
         // 602 - room locked/unlocked
         // 603 - game locked/unlocked
+        // 604 - player kicked
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;
@@ -358,7 +375,7 @@ wss.on('connection', function connection(ws, rq) {
     }
     function etn(roomID, exceptUID) {
         // Codes
-        // 171 - noghtMode state changed
+        // 171 - nightMode state changed
         exceptUID = exceptUID ? exceptUID : null;
         let nightMode = rooms[roomID].nightMode;
         Object.keys(rooms[roomID].players).forEach(function(uid) {
