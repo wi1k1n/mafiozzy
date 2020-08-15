@@ -54,26 +54,30 @@
                             title="Disable ability to change mode 'Play' -> 'Spectate'">🔒 game</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_lock_room"
                             title="Disable ability to enter the room">🔒 room</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com"
-                            title="Let the sheriff to make his check">Sheriff Check</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night"
-                            title="Let mafia to kill player">Assassination</button>
-                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss"
-                            title="Let mafia boss to make his check">Boss Check</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player"
+                            title="Click on player to kick him if this enabled">✖P</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
+                            title="Click to unmark all players (both killed and voted)">↺R</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_numbers_manual"
+                            title="Set numbers to players in manual mode"># Manual</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players"
                             title="Shuffle player numbers">🎲 players</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup"
                             title="Shuffle and give roles to the players">⚙ roles</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player"
-                            title="Click on player to kick him if this enabled">kick player</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
-                            title="Click to unmark all players (both killed and voted)">↺ Reset</button>
-                    <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
-                            title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_hide"
                             title="Click show/hide the list of players">☐ hide players</button>
+                </p>
+                <p>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com"
+                            title="Let the sheriff to make his check">Sheriff Check</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night"
+                            title="Let mafia to kill player">Assassination</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss"
+                            title="Let mafia boss to make his check">Boss Check</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
+                            title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
                 </p>
             </div>
             <div id="div_team_btns" class="hidden">
@@ -375,13 +379,19 @@
                     // Response after 'boss check' request
                     if (code !== 180)
                         return serverErrReturnedHandler(msg);
-                    bootbox.alert(msg.role ? 'YES, this player IS the Sheriff' : 'NO, this player is NOT the Sheriff');
+                    bootbox.alert({
+                        message: msg.role ? 'YES, this player IS the Sheriff' : 'NO, this player is NOT the Sheriff',
+                        centerVertical: true
+                    });
                     return;
                 } else if ('sc' === cmd) {
                     // Response after 'sheriff check' request
                     if (code !== 190)
                         return serverErrReturnedHandler(msg);
-                    bootbox.alert(msg.role ? 'YES, this player IS the mafia' : 'NO, this player is NOT the mafia');
+                    bootbox.alert({
+                        message: msg.role ? 'YES, this player IS the mafia' : 'NO, this player is NOT the mafia',
+                        centerVertical: true
+                    });
                     return;
                 } else if ('dl' === cmd) {
                     // Response after 'kick player' request
@@ -520,6 +530,17 @@
                 Object.keys(rs).forEach(function(e) { rs[e] = 0; });
                 let l = players.length;
                 if (Object.values(rs).reduce((e, a) => a + e) !== l && l > 3 && l < 13) {
+                    // These values are meant to give the following distributions:
+                    // I - Innocent, M - Mafia, S - Sheriff, B - MafiaBoss
+                    // 4  => 2I 1S 1B
+                    // 5  => 3I 1S 1B
+                    // 6  => 3I 1S 2M
+                    // 7  => 4I 1S 2M
+                    // 8  => 5I 1S 1B 1M
+                    // 9  => 6I 1S 1B 1M
+                    // 10 => 6I 1S 1B 2M
+                    // 11 => 6I 1S 1B 3M
+                    // 12 => 7I 1S 1B 3M
                     rs['Sheriff'] = 1;
                     rs['MafiaBoss'] = (l === 6 || l === 7) ? 0 : 1;
                     if (l < 6) rs['Innocent'] = l - 2;
@@ -573,6 +594,32 @@
                     players[i - 1].role = roleNames[indName];
                 }
                 sendJSON({cmd: 'cr', uid: userID, data: players});
+            });
+            $('#btn_numbers_manual').click(function(e) {
+                players.forEach(function(p) {
+                    p.status = 'playing';
+                });
+                let box = bootbox.prompt({
+                    title: "Give players new numbers:",
+                    centerVertical: true,
+                    value: players.map(p => p.number).sort().join(' '),
+                    callback: function(result) {
+                        // console.log(result);
+                        if (!result) return;
+                        let numbers = result.split(/\s+|,/).filter(e => e.length > 0).map(x => parseInt(x)).filter(e => Number.isInteger(e));
+                        if (numbers.length !== players.length) {
+                            return bootbox.alert('Wrong input! Nothing changed!');
+                        }
+                        players.map((p, i) => [p.number, i]).sort().forEach(function(e, i) {
+                            players[e[1]].number = numbers[i];
+                        });
+                        sendJSON({cmd: 'cn', uid: userID, data: players});
+                    }
+                });
+                box.on('shown.bs.modal', function(e) {
+                    $('input', this).select();
+                });
+                sendJSON({cmd: 'cs', uid: userID, data: players});
             });
             $('#btn_killed_reset').click(function(e) {
                 players.forEach(function(p) {
