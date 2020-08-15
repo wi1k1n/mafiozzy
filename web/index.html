@@ -712,14 +712,20 @@
                 }
 
                 // Fill spectators first
-                let specs = '';
+                let scont = $('#spectators').html('');
+                let specs = [];
                 data.players.filter(p => p.team === 'spec').forEach(function(us) {
                     let n = us.name;
                     if (us.uid === data.host) n = '<u>' + n + '</u>';
-                    specs += n + ', ';
+                    specs.push($('<span>' + n + '</span>').on('click', e => playerClicked(e, us.uid)));
                 });
                 if (specs.length > 0) {
                     $('#p_spectators_container').removeClass('hidden');
+                    scont.append(specs[0]);
+                    for (let i = 1; i < specs.length; i++) {
+                        scont.append(',');
+                        scont.append(specs[i]);
+                    }
                 } else
                     $('#p_spectators_container').addClass('hidden');
 
@@ -754,14 +760,15 @@
                     // if (up.dc)
                     //     $(pRow).addClass('gray');
                 });
-                $('#spectators').html(specs.substring(0, specs.length - 2));
+                // $('#spectators').html(specs.substring(0, specs.length - 2));
             }
             function playerClicked(e, puid) {
                 let me = players.filter(p => p.uid === userID)[0];
-                if ($('#btn_vote').hasClass('active') && iamhost)
-                    return sendJSON({cmd: 'vt', uid: userID, puid: puid});
                 if ($('#btn_delete_player').hasClass('active') && iamhost)
                     return sendJSON({cmd: 'dl', uid: userID, puid: puid});
+                if (!me) return;
+                if ($('#btn_vote').hasClass('active') && iamhost)
+                    return sendJSON({cmd: 'vt', uid: userID, puid: puid});
                 if (['Mafia'].includes(me.role) && !iamspec)
                     return sendJSON({cmd: 'kl', uid: userID, puid: puid});
                 if (['MafiaBoss'].includes(me.role) && !iamspec) {
