@@ -368,13 +368,13 @@
                     // Response after 'boss check' request
                     if (code !== 180)
                         return serverErrReturnedHandler(msg);
-                    bootbox.alert(msg.role ? 'Yes, this player IS the Sheriff' : 'Nope, this player is NOT the Sheriff');
+                    bootbox.alert(msg.role ? 'YES, this player IS the Sheriff' : 'NO, this player is NOT the Sheriff');
                     return;
                 } else if ('sc' === cmd) {
                     // Response after 'sheriff check' request
                     if (code !== 190)
                         return serverErrReturnedHandler(msg);
-                    bootbox.alert(msg.role ? 'Yes, this player IS the mafia' : 'Nope, this player is NOT the mafia');
+                    bootbox.alert(msg.role ? 'YES, this player IS the mafia' : 'NO, this player is NOT the mafia');
                     return;
                 } else if ('dl' === cmd) {
                     // Response after 'kick player' request
