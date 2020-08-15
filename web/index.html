@@ -25,6 +25,13 @@
         .gray {
             color: #828282;
         }
+        .disable-select {
+            user-select: none; /* supported by Chrome and Opera */
+            -webkit-user-select: none; /* Safari */
+            -khtml-user-select: none; /* Konqueror HTML */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
+        }
     </style>
 </head>
 <body>
@@ -148,7 +155,7 @@
 </div>
 
 <div class="hidden" id="div_templates">
-    <ul><li class="list-group-item template_player_row">Player</li></ul>
+    <ul><li class="list-group-item template_player_row disable-select">Player</li></ul>
 </div>
 <!-- Debugger panel -->
 <footer class="page-footer fixed-bottom pb-3 hidden" id="debugContainer">
