@@ -264,12 +264,16 @@
                     console.log(`[ws] Connection closed cleanly, code=${evt.code} reason=${evt.reason}`);
                     if (evt.code === 4001) {
                         updateStatus('Connection closed because another instance has been initiated!');
+                    } else if (evt.code === 4002) {
+                        updateStatus('You have been kicked out from the room.');
+                        bootbox.alert('You have been kicked out from the room!');
                     }
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
                     console.log('[ws] Connection died. Connected === ' + connected);
                     if (!connected) {
                         updateStatus('Could not connect to server!');
+                        bootbox.alert('Could not connect to server!');
                     } else {
                         updateStatus('Connection closed!');
                     }
@@ -321,6 +325,7 @@
                         // the room is locked
                         // return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                         updateStatus('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
+                        bootbox.alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                         return;
                     } else if (code !== 40)
                         return serverErrReturnedHandler(msg);
@@ -335,8 +340,10 @@
                     return; // console.log('List of players: ' + JSON.stringify(msg.data));
                 } else if ('tm' === cmd) {
                     // Response after 'change team' request
-                    if (code === 74)
+                    if (code === 74) {
                         updateStatus('This game is in process ATM.');
+                        bootbox.alert('Cannot change team. This game is in process ATM.');
+                    }
                     if (code !== 70)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
