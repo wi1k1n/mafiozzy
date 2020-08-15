@@ -162,6 +162,7 @@
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 <script src="js/lib/bootstrap-input-spinner.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/4.4.0/bootbox.min.js"></script>
 <script>
     $(window).on('hashchange', function(e) {
         location.reload();
@@ -171,6 +172,7 @@
     $(document).ready(function() {
         const HOST = 'wss://infiny.ddns.net:6001';
         // const HOST = 'ws://localhost:6001';
+        // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
@@ -187,7 +189,8 @@
         let gameStatus = 'idle';
         let userID = localStorage.hasOwnProperty('uid') ? localStorage.getItem('uid') : null;
         let userName = localStorage.hasOwnProperty('name') ? localStorage.getItem('name') : '';
-        let connected = false; // needed for determining if
+        let connected = false; // needed for determining if connection was up 4 some time or instantly closed after opening
+        let closed = false;
         let iamhost = false;
         let iamspec = true;
         let roomLocked = false;
@@ -215,6 +218,11 @@
             window.open(l.origin + l.pathname + l.search + '#' + roomID, '_self');
             joinRoom();
         });
+        document.onvisibilitychange = function() {
+            if (closed && document.visibilityState === 'visible') {
+                joinRoom();
+            }
+        };
 
         function joinRoom() {
             if (!roomID) {
@@ -229,6 +237,8 @@
 
             $('#p_ws_status').removeClass('hidden').text('Connecting to server...');
 
+            connected = false;
+            closed = false;
             let ws = new WebSocket(HOST, biID.toString()+roomID.toString());
             ws.onopen = function(evt) {
                 connected = true;
@@ -254,6 +264,7 @@
                     }
                 }
                 connected = false;
+                closed = true;
             };
             ws.onerror = function(evt) {
                 console.log(`[ws] Error: ${evt.message}`);
@@ -357,13 +368,13 @@
                     // Response after 'boss check' request
                     if (code !== 180)
                         return serverErrReturnedHandler(msg);
-                    alert(msg.role ? 'Yes, this player IS the Sheriff' : 'Nope, this player is NOT the Sheriff');
+                    bootbox.alert(msg.role ? 'Yes, this player IS the Sheriff' : 'Nope, this player is NOT the Sheriff');
                     return;
                 } else if ('sc' === cmd) {
                     // Response after 'sheriff check' request
                     if (code !== 190)
                         return serverErrReturnedHandler(msg);
-                    alert(msg.role ? 'Yes, this player IS the mafia' : 'Nope, this player is NOT the mafia');
+                    bootbox.alert(msg.role ? 'Yes, this player IS the mafia' : 'Nope, this player is NOT the mafia');
                     return;
                 } else if ('dl' === cmd) {
                     // Response after 'kick player' request
