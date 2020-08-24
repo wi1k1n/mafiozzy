@@ -183,8 +183,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -821,8 +821,10 @@
                 if (iamhost) {
                     if ($('#btn_delete_player').hasClass('active'))
                         return sendJSON({cmd: 'dl', uid: userID, puid: puid});
-                    if ($('#btn_give_host').hasClass('active'))
+                    if ($('#btn_give_host').hasClass('active')) {
+                        $('#btn_give_host').removeClass('active');
                         return sendJSON({cmd: 'gh', uid: userID, puid: puid});
+                    }
                 }
                 if (!me) return;
                 if ($('#btn_vote').hasClass('active') && iamhost)
