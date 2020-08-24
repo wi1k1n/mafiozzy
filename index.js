@@ -304,7 +304,7 @@ wss.on('connection', function connection(ws, rq) {
             rooms[roomID].nightActionPerformed = true;
             return;
         } else if ('dl' === cmd) {
-            // Player requested to kill player
+            // Player requested to kick other player
             if (!(userID in rooms[roomID].players))
                 return sendJSON({cmd: 'dl', code: 201, msg: 'You are not in the room'});
             let voter = rooms[roomID].players[userID];
@@ -320,6 +320,33 @@ wss.on('connection', function connection(ws, rq) {
             delete rooms[roomID].players[msg.puid];
             sendJSON({cmd: 'dl', code: 200});
             els(roomID, userID, 604);
+            return;
+        } else if ('gh' === cmd) {
+            // Host requested to transfer hostage to other player
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'gh', code: 211, msg: 'You are not in the room'});
+            let voter = rooms[roomID].players[userID];
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'gh', code: 212, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'gh', code: 213, msg: 'puid field not specified'});
+            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid].ws);
+            rooms[roomID].host = msg.puid;
+            sendJSON({cmd: 'gh', code: 210});
+            els(roomID, userID, 605);
+            return;
+        } else if ('tg' === cmd) {
+            // Host requested toggle states (game-, room-Locked, nightMode)
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'tg', code: 221, msg: 'You are not in the room'});
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'tg', code: 222, msg: 'You are not the host of room'});
+            sendJSON({
+                cmd: 'tg', code: 220,
+                gameLock: rooms[roomID].playing,
+                nightMode: rooms[roomID].nightMode,
+                roomLock: rooms[roomID].locked
+            });
             return;
         }
         return;
@@ -344,6 +371,7 @@ wss.on('connection', function connection(ws, rq) {
         // 602 - room locked/unlocked
         // 603 - game locked/unlocked
         // 604 - player kicked
+        // 605 - host changed
 
         // Broadcast new list of players, when something changes
         exceptUID = exceptUID ? exceptUID : null;

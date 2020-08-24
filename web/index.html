@@ -56,26 +56,28 @@
                             title="Disable ability to enter the room">🔒 room</button>
                     <button type="button" class="btn btn-danger btn-sm" id="btn_delete_player"
                             title="Click on player to kick him if this enabled">✖P</button>
-                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
-                            title="Click to unmark all players (both killed and voted)">↺R</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_numbers_manual"
                             title="Set numbers to players in manual mode"># Manual</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_give_host"
+                            title="Click on player to give him host">Host</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players"
                             title="Shuffle player numbers">🎲 players</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup"
                             title="Shuffle and give roles to the players">⚙ roles</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
+                            title="Click to unmark all players (both killed and voted)">↺R</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_hide"
                             title="Click show/hide the list of players">☐ hide players</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com"
-                            title="Let the sheriff to make his check">Sheriff Check</button>
+                            title="Let the sheriff to make his check">> Sheriff</button>
                     <button type="button" class="btn btn-success btn-sm" id="btn_toggle_night"
-                            title="Let mafia to kill player">Assassination</button>
+                            title="Let mafia to kill player">> Mafia</button>
                     <button type="button" class="btn btn-success btn-sm" id="btn_toggle_boss"
-                            title="Let mafia boss to make his check">Boss Check</button>
+                            title="Let mafia boss to make his check">> Boss</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
                             title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
                 </p>
@@ -181,8 +183,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        const HOST = 'wss://infiny.ddns.net:6001';
-        // const HOST = 'ws://localhost:6001';
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -251,6 +253,7 @@
             connected = false;
             closed = false;
             let ws = new WebSocket(HOST, biID.toString()+roomID.toString());
+            console.log('UID: ' + biID.toString()+roomID.toString());
             ws.onopen = function(evt) {
                 connected = true;
                 console.log("[ws] Connection with server established");
@@ -305,6 +308,7 @@
                     if (code !== 10 || !msg.hasOwnProperty('uid'))
                         return serverErrReturnedHandler(msg);
                     userID = msg.uid;
+                    console.log('PUID: ' + userID);
                     localStorage.setItem('uid', userID);
                     askRequestUserName(true);
                     return sendJSON({cmd: 'jn', uid: userID});
@@ -317,18 +321,22 @@
                     return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('jn' === cmd) {
                     // Response after 'join room' request
-                    // Requesting player list
+                    if (code !== 40 && code !== 42 && code !== 43)
+                        return serverErrReturnedHandler(msg);
+                    // Request states of toggle buttons
+                    if (code === 42 || code === 40)
+                        sendJSON({cmd: 'tg', uid: userID});
                     if (code === 42) {
                         // this userID already in this room
                         return sendJSON({cmd: 'ls', uid: userID});
-                    } else if (code === 43) {
+                    }
+                    if (code === 43) {
                         // the room is locked
                         // return alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                         updateStatus('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                         bootbox.alert('This room is locked. Wait until it\'s got unlocked or ask host to unlock.');
                         return;
-                    } else if (code !== 40)
-                        return serverErrReturnedHandler(msg);
+                    }
                     console.log('join room succeeded');
                     return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('ls' === cmd) {
@@ -405,6 +413,28 @@
                     if (code !== 200)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('gh' === cmd) {
+                    // Response after 'give host' request
+                    if (code !== 210 && code !== 214)
+                        return serverErrReturnedHandler(msg);
+                    if (code === 214) {
+                        sendJSON({cmd: 'tg', uid: userID});
+                        bootbox.alert('You are now a new host of the room!');
+                    }
+                    return sendJSON({cmd: 'ls', uid: userID});
+                } else if ('tg' === cmd) {
+                    if (code !== 220)
+                        return serverErrReturnedHandler(msg);
+                    gameLocked = msg.gameLock;
+                    roomLocked = msg.roomLock;
+                    nightTurn = msg.nightMode;
+
+                    lockGameGUI(msg.gameLock);
+                    lockRoomGUI(msg.roomLock);
+                    if (msg.nightMode === 1) toggleNightGUI(true);
+                    else if (msg.nightMode === 2) toggleBossGUI(true);
+                    else if (msg.nightMode === 3) toggleComGUI(true);
+                    return;
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -607,7 +637,7 @@
                     p.status = 'playing';
                 });
                 let box = bootbox.prompt({
-                    title: "Give players new numbers:",
+                    title: "Give players correct numbers:",
                     centerVertical: true,
                     value: players.map(p => p.number).sort().join(' '),
                     callback: function(result) {
@@ -638,14 +668,33 @@
                 if ($(this).hasClass('active')) $(this).removeClass('active');
                 else {
                     $(this).addClass('active');
+                    $('#btn_toggle_com').removeClass('active');
+                    $('#btn_toggle_boss').removeClass('active');
+                    $('#btn_toggle_night').removeClass('active');
                     $('#btn_delete_player').removeClass('active');
+                    $('#btn_give_host').removeClass('active');
                 }
             });
             $('#btn_delete_player').click(function(e) {
                 if ($(this).hasClass('active')) $(this).removeClass('active');
                 else {
                     $(this).addClass('active');
+                    $('#btn_toggle_com').removeClass('active');
+                    $('#btn_toggle_boss').removeClass('active');
+                    $('#btn_toggle_night').removeClass('active');
                     $('#btn_vote').removeClass('active');
+                    $('#btn_give_host').removeClass('active');
+                }
+            });
+            $('#btn_give_host').click(function(e) {
+                if ($(this).hasClass('active')) $(this).removeClass('active');
+                else {
+                    $(this).addClass('active');
+                    $('#btn_toggle_com').removeClass('active');
+                    $('#btn_toggle_boss').removeClass('active');
+                    $('#btn_toggle_night').removeClass('active');
+                    $('#btn_vote').removeClass('active');
+                    $('#btn_delete_player').removeClass('active');
                 }
             });
             $('#btn_hide').click(function(e) {
@@ -705,9 +754,8 @@
                     myRole = me.role;
                     myTeam = me.team;
                 }
-                if (iamhost) {
-                    $('#div_host_btns').removeClass('hidden');
-                }
+                if (iamhost) $('#div_host_btns').removeClass('hidden');
+                else $('#div_host_btns').addClass('hidden');
 
                 // Disable correct button [Spectate] or [Play]
                 if (myTeam === 'spec') {
@@ -745,8 +793,7 @@
                     let txt = '#' + up.number + ' ' + up.name;
                     if (iamspec || up.uid === userID ||
                         ((myRole === 'Mafia' || myRole === 'MafiaBoss') && (up.role === 'Mafia' || up.role === 'MafiaBoss')))
-                        if (up.role)
-                            txt += ' (' + up.role + ')';
+                        if (up.role) txt += ' (' + up.role + ')';
                     txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     if (userID === up.uid)
                         txt = '<b>' + txt + '</b>';
@@ -771,8 +818,12 @@
             }
             function playerClicked(e, puid) {
                 let me = players.filter(p => p.uid === userID)[0];
-                if ($('#btn_delete_player').hasClass('active') && iamhost)
-                    return sendJSON({cmd: 'dl', uid: userID, puid: puid});
+                if (iamhost) {
+                    if ($('#btn_delete_player').hasClass('active'))
+                        return sendJSON({cmd: 'dl', uid: userID, puid: puid});
+                    if ($('#btn_give_host').hasClass('active'))
+                        return sendJSON({cmd: 'gh', uid: userID, puid: puid});
+                }
                 if (!me) return;
                 if ($('#btn_vote').hasClass('active') && iamhost)
                     return sendJSON({cmd: 'vt', uid: userID, puid: puid});
