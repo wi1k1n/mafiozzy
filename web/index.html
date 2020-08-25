@@ -486,7 +486,7 @@
                     if (code !== 231)
                         return serverErrReturnedHandler(msg);
                     if (msg.state === 'red') {
-                        bootbox.alert('Game is won by INNOCENTs!');
+                        bootbox.alert('<div class="red">Game is won by INNOCENTs!</div>');
                     } else if (msg.state === 'black') {
                         bootbox.alert('Game is won by MAFIA!');
                     }
@@ -496,7 +496,13 @@
                     if (code != 251)
                         return serverErrReturnedHandler(msg);
                     if (msg.uid !== userID)
-                        bootbox.alert('Night action for turn<br>'+msg.nightMode+'<br>has been done');
+                        if (msg.nightMode === 1) {
+                            bootbox.alert('Mafia has made an assassination!');
+                        } else if (msg.nightMode === 2) {
+                            bootbox.alert('MafiaBoss has made his check!');
+                        } else if (msg.nightMode === 3) {
+                            bootbox.alert('Sheriff has made his check!');
+                        }
                 }
                 // Error handler
                 else if ('err' === cmd) {
