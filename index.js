@@ -198,6 +198,8 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'kl', code: 100});
             rooms[roomID].nightActionPerformed = true;
             els(roomID, userID, 67);
+            etf(roomID, userID);
+            ews(roomID);
             return;
         } else if ('cs' === cmd) {
             // Change roles of players requested
@@ -212,7 +214,7 @@ wss.on('connection', function connection(ws, rq) {
             els(roomID, userID, 68);
             return;
         } else if ('vt' === cmd) {
-            // Player requested to kill player
+            // Player requested to vote against player
             if (!(userID in rooms[roomID].players)) {
                 return sendJSON({cmd: 'vt', code: 125, msg: 'You are not in the room'});
             }
@@ -223,12 +225,13 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'vt', code: 122, msg: 'puid field not specified'});
             let voted = rooms[roomID].players[msg.puid];
             if (voted.team !== 'player')
-                return sendJSON({cmd: 'vt', code: 123, msg: 'Player you r killing is not playing ATM.'});
+                return sendJSON({cmd: 'vt', code: 123, msg: 'Player you r voting is not playing ATM.'});
             if (voted.status !== 'playing')
-                return sendJSON({cmd: 'vt', code: 124, msg: 'Player you r killing has already been killed or voted.'});
+                return sendJSON({cmd: 'vt', code: 124, msg: 'Player you r voting has already been killed or voted.'});
             voted.status = 'voted';
             sendJSON({cmd: 'vt', code: 120});
             els(roomID, userID, 69);
+            ews(roomID);
             return;
         } else if ('lr' === cmd) {
             // Host requested to lock room
@@ -282,6 +285,7 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'bc', code: 184, msg: 'You have already made your check this night'});
             sendJSON({cmd: 'bc', code: 180, role: pl.role === 'Sheriff'});
             rooms[roomID].nightActionPerformed = true;
+            etf(roomID, userID);
             return;
         } else if ('sc' === cmd) {
             // Player made a 'sheriff check' request
@@ -302,6 +306,7 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'sc', code: 194, msg: 'You have already made your check this night'});
             sendJSON({cmd: 'sc', code: 190, role: ['MafiaBoss', 'Mafia'].includes(pl.role)});
             rooms[roomID].nightActionPerformed = true;
+            etf(roomID, userID);
             return;
         } else if ('dl' === cmd) {
             // Player requested to kick other player
@@ -347,6 +352,14 @@ wss.on('connection', function connection(ws, rq) {
                 nightMode: rooms[roomID].nightMode,
                 roomLock: rooms[roomID].locked
             });
+            return;
+        } else if ('ws' === cmd) {
+            // Host requested to check if game has ended
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'ws', code: 241, msg: 'You are not in the room'});
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'ws', code: 242, msg: 'You are not the host of room'});
+            sendJSON({cmd: 'ws', code: 240, state: gameWinState(roomID)});
             return;
         }
         return;
@@ -413,6 +426,27 @@ wss.on('connection', function connection(ws, rq) {
                 sendJSON({cmd: 'elg', code: 171, state: nightMode}, users[uid].ws);
         });
         return;
+    }
+    function gameWinState(roomID) {
+        let players = rooms[roomID].players;
+        let playersAlive = Object.keys(players).filter(uid =>
+            players[uid].team === 'player' &&
+            players[uid].status === 'playing');
+        let black = playersAlive.filter(uid => players[uid].role === 'Mafia' || players[uid].role === 'MafiaBoss');
+        let red = playersAlive.filter(uid => players[uid].role === 'Innocent' || players[uid].role === 'Sheriff');
+        if (black.length === 0)
+            return 'red';
+        else if (black.length === red.length)
+            return 'black';
+        return 'progress';
+    }
+    function ews(roomID) {
+        // Event win state - sends to host command that game finished
+        sendJSON({cmd: 'ews', code: 231, state: gameWinState(roomID)}, users[rooms[roomID].host].ws);
+    }
+    function etf(roomID, uid) {
+        // Event on night action finished
+        sendJSON({cmd: 'etf', code: 251, nightMode: rooms[roomID].nightMode, uid: uid}, users[rooms[roomID].host].ws);
     }
     function prepareListOfUsers(roomID) {
         let obj = {
