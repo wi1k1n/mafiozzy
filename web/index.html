@@ -117,45 +117,51 @@
                 <div class="form-group">
                     <div class="form-group row">
                         <label for="inp_role_innocent" class="col-4 col-form-label">Innocent</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" step="1" id="inp_role_innocent">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_sheriff" class="col-4 col-form-label">Sheriff</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_sheriff">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_mafia" class="col-4 col-form-label">Mafia</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafia">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_mafboss" class="col-4 col-form-label">Mafia Boss</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafboss">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">
                         </div>
                     </div>
                     <div class="form-group row">
                         <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>
-                        <div class="col-4">
+                        <div class="col-5">
                             <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary mr-auto" id="btn_modal_roles_save">Save changes</button>
-                <button type="button" class="btn btn-warning" id="btn_shuffle_roles">🎲 roles</button>
+                <div class="mr-auto">
+                    <button type="button" class="btn btn-primary" id="btn_modal_roles_save"
+                            title="Click to save these numbers but NOT apply them on players">Save</button>
+                    <button type="button" class="btn btn-danger" id="btn_modal_roles_clear"
+                            title="Click to clear current players roles">Clear</button>
+                </div>
+                <button type="button" class="btn btn-warning" id="btn_shuffle_roles"
+                        title="Click to shuffle selected roles to players">🎲 roles</button>
                 <button type="button" class="btn btn-secondary" id="btn_modal_close" data-dismiss="modal">Close</button>
             </div>
         </div>
@@ -755,6 +761,12 @@
             $('#btn_modal_roles_save').click(function(e) {
                 roleSetup = getRolesPDF();
                 $('#modal_roles').modal('hide');
+            });
+            $('#btn_modal_roles_clear').click(e => {
+                Object.keys(players).forEach(uid => {
+                    players[uid].role = '';
+                });
+                sendJSON({cmd: 'cr', uid: userID, data: players});
             });
             $('#btn_modal_close').click(function(e) { setRolesPDF(roleSetup); });
             $('#btn_modal_close_cross').click(function(e) { setRolesPDF(roleSetup); });
