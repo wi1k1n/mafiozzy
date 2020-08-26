@@ -537,7 +537,7 @@
                     if (code != 271)
                         return serverErrReturnedHandler(msg);
                     if (msg.role) bootbox.alert({
-                            message: '<img src="img/'+msg.role+'.jpg" class="img-give-role"><br>Your role is ' + msg.role,
+                            message: '<img src="img/'+msg.role.toLowerCase()+'.jpg" class="img-give-role"><br>Your role is ' + msg.role,
                             callback: () => {sendJSON({cmd: 'rr', uid: userID});}
                         });
                     else bootbox.alert('Game master is dumb and forgot to distribute roles.<br>Please let him know he is stupid!');
@@ -957,8 +957,10 @@
                     }
                 }
                 if (!me) return;
-                if ($('#btn_vote').hasClass('active') && iamhost)
+                if ($('#btn_vote').hasClass('active') && iamhost) {
+                    $('#btn_vote').removeClass('active');
                     return sendJSON({cmd: 'vt', uid: userID, puid: puid});
+                }
                 if (['Mafia'].includes(me.role) && !iamspec)
                     return sendJSON({cmd: 'kl', uid: userID, puid: puid});
                 if (['MafiaBoss'].includes(me.role) && !iamspec) {
