@@ -193,8 +193,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        const HOST = 'wss://infiny.ddns.net:6001';
-        // const HOST = 'ws://localhost:6001';
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -599,9 +599,10 @@
             });
             $('#btn_shuffle_players').click(function(e) {
                 let indices = Array.from(Array(players.length).keys());
+                let numbers = players.map(p => p.number);
                 for (let i = indices.length; i > 0; i--) {
                     let ind = Math.floor(Math.random() * i);
-                    players[i - 1].number = indices.splice(ind, 1)[0] + 1;
+                    players[i - 1].number = numbers[indices.splice(ind, 1)[0]];// + 1;
                 }
                 sendJSON({cmd: 'cn', uid: userID, data: players});
             });
