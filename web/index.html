@@ -209,8 +209,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -537,7 +537,7 @@
                     if (code != 271)
                         return serverErrReturnedHandler(msg);
                     if (msg.role) bootbox.alert({
-                            message: '<img src="img/'+msg.role+'.png" class="img-give-role"><br>Your role is ' + msg.role,
+                            message: '<img src="img/'+msg.role+'.jpg" class="img-give-role"><br>Your role is ' + msg.role,
                             callback: () => {sendJSON({cmd: 'rr', uid: userID});}
                         });
                     else bootbox.alert('Game master is dumb and forgot to distribute roles.<br>Please let him know he is stupid!');
