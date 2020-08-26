@@ -602,7 +602,7 @@
                 let numbers = players.map(p => p.number);
                 for (let i = indices.length; i > 0; i--) {
                     let ind = Math.floor(Math.random() * i);
-                    players[i - 1].number = numbers[indices.splice(ind, 1)[0]];// + 1;
+                    players[i - 1].number = numbers[indices.splice(ind, 1)[0]];
                 }
                 sendJSON({cmd: 'cn', uid: userID, data: players});
             });
@@ -678,9 +678,9 @@
                 sendJSON({cmd: 'cr', uid: userID, data: players});
             });
             $('#btn_numbers_manual').click(function(e) {
-                players.forEach(function(p) {
-                    p.status = 'playing';
-                });
+                // players.forEach(function(p) {
+                //     p.status = 'playing';
+                // });
                 let box = bootbox.prompt({
                     title: "Give players correct numbers:",
                     centerVertical: true,

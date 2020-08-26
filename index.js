@@ -122,11 +122,6 @@ wss.on('connection', function connection(ws, rq) {
                 let mx = Math.max.apply(Math, Object.values(rooms[roomID].players).map(p => p.number));
                 rooms[roomID].players[userID].number = mx < 0 ? 1 : (mx + 1);
             }
-            // Handle numbers
-            // let players = [...Object.values(rooms[roomID].players).filter(p => p.team === 'player')];
-            // players.sort((a, b) => a.number < b.number ? -1 : (a.number > b.number ? 1 : 0));
-            // for (let i = 0; i < players.length; i++)
-            //     rooms[roomID].players[players[i].uid].number = i + 1;
 
             sendJSON({cmd: 'tm', code: 70});
             els(roomID, userID, 64);
