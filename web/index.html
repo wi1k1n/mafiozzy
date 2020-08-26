@@ -895,6 +895,7 @@
                 let specs = [];
                 data.players.filter(p => p.team === 'spec').forEach(function(us) {
                     let n = us.name;
+                    if (us.dc) n = '(?)' + n;
                     if (us.uid === data.host) n = '<u>' + n + '</u>';
                     specs.push($('<span>' + n + '</span>').on('click', e => playerClicked(e, us.uid)));
                 });
