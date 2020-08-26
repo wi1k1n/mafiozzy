@@ -9,8 +9,8 @@ if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
 
 const PORT = argv.port ? parseInt(argv.port) : 6001;
-const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:7500, std:2.3, min:3000, max:15000};
-const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:9000, std:3, min:5000, max:20000};
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:6000, std:2.3, min:2000, max:15000};
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:7000, std:3, min:3000, max:20000};
 const USERID_LENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
 const DEBUG = argv.debug ? true : false;
@@ -180,7 +180,7 @@ wss.on('connection', function connection(ws, rq) {
             });
             let mfs = Object.keys(rooms[roomID].players).filter(puid => {
                 let cp = rooms[roomID].players[puid];
-                return cp.role === 'Mafia' && cp.status !== 'killed';
+                return cp.role === 'Mafia' && cp.status === 'playing';
             });
 
             if (killer.role !== 'MafiaBoss') {
@@ -191,7 +191,8 @@ wss.on('connection', function connection(ws, rq) {
                     return sendJSON({cmd: 'kl', code: 104, msg: 'Mafia Boss is still alive'});
                 if (mfs.some(puid => {
                     let cp = rooms[roomID].players[puid];
-                    return cp.role === 'Mafia' && cp.number < rooms[roomID].players[userID].number;
+                    // return cp.role === 'Mafia' && cp.number < rooms[roomID].players[userID].number;
+                    return cp.number < rooms[roomID].players[userID].number;
                 }))
                     // There is at least 1 more Mafia with lower number value
                     return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
