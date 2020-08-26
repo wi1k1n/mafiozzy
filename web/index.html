@@ -32,6 +32,13 @@
             -moz-user-select: none; /* Firefox */
             -ms-user-select: none; /* Internet Explorer/Edge */
         }
+        .modal-body {
+            text-align: center;
+        }
+        .img-give-role {
+            width: 75%;
+            height: auto;
+        }
     </style>
 </head>
 <body>
@@ -529,9 +536,10 @@
                     // Event on role is given to you by host
                     if (code != 271)
                         return serverErrReturnedHandler(msg);
-                    if (msg.role) bootbox.alert('Your role is ' + msg.role, () => {
-                        sendJSON({cmd: 'rr', uid: userID});
-                    });
+                    if (msg.role) bootbox.alert({
+                            message: '<img src="img/'+msg.role+'.png" class="img-give-role"><br>Your role is ' + msg.role,
+                            callback: () => {sendJSON({cmd: 'rr', uid: userID});}
+                        });
                     else bootbox.alert('Game master is dumb and forgot to distribute roles.<br>Please let him know he is stupid!');
                 } else if ('erc' === cmd) {
                     // Event on role is given to you by host
