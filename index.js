@@ -142,14 +142,16 @@ wss.on('connection', function connection(ws, rq) {
             els(roomID, userID, 65);
             return;
         } else if ('cr' === cmd) {
-            // Change roles of players requested
+            // Change roles of players (and immunity status) requested
             if (rooms[roomID].host !== userID)
                 return sendJSON({cmd: 'cr', code: 91, msg: 'You are not the host of room'});
             if (!msg.hasOwnProperty('data'))
                 return sendJSON({cmd: 'cr', code: 92, msg: 'Data not specified'});
             msg.data.forEach(function(p) {
                 rooms[roomID].players[p.uid].role = p.role;
+                rooms[roomID].players[p.uid].immunity = p.immunity;
             });
+            rooms[roomID].currentTurn = 0;
             sendJSON({cmd: 'cr', code: 90});
             els(roomID, userID, 66);
             return;
@@ -169,6 +171,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'kl', code: 103, msg: 'Player you r killing is not playing ATM.'});
             if (killed.status !== 'playing')
                 return sendJSON({cmd: 'kl', code: 106, msg: 'Player you r killing has already been killed.'});
+            if (rooms[roomID].currentTurn === 1 && killed.immunity)
+                return sendJSON({cmd: 'kl', code: 107, msg: 'Player you r killing has immunity for the 1st round.'});
 
             let mbs = Object.keys(rooms[roomID].players).filter(puid => {
                 let cp = rooms[roomID].players[puid];
@@ -265,6 +269,8 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'tn', code: 162, msg: 'State not specified'});
             rooms[roomID].nightMode = msg.state;
             rooms[roomID].nightActionPerformed = false;
+            if (msg.state === 1)
+                rooms[roomID].currentTurn += 1;
             sendJSON({cmd: 'tn', code: 160});
             // els(roomID, userID, 603);
             etn(roomID, null);
@@ -466,7 +472,7 @@ wss.on('connection', function connection(ws, rq) {
         let red = playersAlive.filter(uid => players[uid].role === 'Innocent' || players[uid].role === 'Sheriff');
         if (black.length === 0)
             return 'red';
-        else if (black.length === red.length)
+        else if (black.length >= red.length)
             return 'black';
         return 'progress';
     }
@@ -532,6 +538,7 @@ wss.on('connection', function connection(ws, rq) {
         this.playing = playing ? playing : false;
         this.nightMode = 0;
         this.nightActionPerformed = false;  // Flag not to allow to spam checks and kills
+        this.currentTurn = 0; // Counter for number of mafia's turns (used for immunity)
     }
     function User(uid, ws, name) {
         if (!uid) console.warn('[User] Invalid userID! Something goes wrong!');
@@ -539,12 +546,13 @@ wss.on('connection', function connection(ws, rq) {
         this.ws = ws ? ws : null;
         this.name = name ? name.toString() : '';
     }
-    function Player(uid, team, number, role, status) {
+    function Player(uid, team, number, role, status, immunity) {
         if (!uid) console.warn('[Player] Invalid userID! Something goes wrong!');
         this.uid = uid ? uid : null;
         this.team = team ? team : 'spec';
         this.name = uid in users ? users[uid].name : '';
         this.role = role ? role : null;
+        this.immunity = immunity ? immunity : false;
         this.number = number ? number : -1;
         this.status = status ? status : 'playing';
         this.dc = false;

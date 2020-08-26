@@ -141,24 +141,22 @@
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafboss">
                         </div>
                     </div>
-<!--                    <div class="form-group row">-->
-<!--                        <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>-->
-<!--                        <div class="col-5">-->
-<!--                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">-->
-<!--                        </div>-->
-<!--                    </div>-->
-<!--                    <div class="form-group row">-->
-<!--                        <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>-->
-<!--                        <div class="col-5">-->
-<!--                            <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">-->
-<!--                        </div>-->
-<!--                    </div>-->
-                    <div class="form-group row">
-                        <label for="inp_role_mafboss" class="col-5 col-form-label">Immunity for player:</label>
+                    <div class="form-group row hidden">
+                        <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>
                         <div class="col-5">
-                            <select  class="form-control" type="number" id="inp_immunity">
-                                <option>None</option>
-                                <option>#1 Elena</option>
+                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">
+                        </div>
+                    </div>
+                    <div class="form-group row hidden">
+                        <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>
+                        <div class="col-5">
+                            <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">
+                        </div>
+                    </div>
+                    <div class="form-group row">
+                        <label for="slc_immunity" class="col-5 col-form-label">Immunity for player:</label>
+                        <div class="col-5">
+                            <select class="form-control" type="number" id="slc_immunity">
                             </select>
                         </div>
                     </div>
@@ -173,7 +171,7 @@
                 </div>
                 <button type="button" class="btn btn-warning" id="btn_shuffle_roles"
                         title="Click to shuffle selected roles to players">🎲 roles</button>
-                <button type="button" class="btn btn-secondary" id="btn_modal_close" data-dismiss="modal">Close</button>
+<!--                <button type="button" class="btn btn-secondary" id="btn_modal_close" data-dismiss="modal">Close</button>-->
             </div>
         </div>
     </div>
@@ -239,6 +237,7 @@
             'Manniac': 0,
             'Doctor': 0
         };
+        let immunityUIDStore = null;
         let players = null;
 
         if (DEBUG) $('#debugContainer').removeClass('hidden');
@@ -388,8 +387,10 @@
                     return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('kl' === cmd) {
                     // Response after 'kill player' request
-                    if (code !== 100)
+                    if (code !== 100 && code !== 107)
                         return serverErrReturnedHandler(msg);
+                    if (code === 107)
+                        bootbox.alert('This player has immunity for this round. Try another player!');
                     return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('cs' === cmd) {
                     // Response after 'change statuses' request
@@ -674,11 +675,20 @@
                     else rs['Mafia'] = 3;
                     setRolesPDF(rs);
                 }
+                // Setup immunity menu
+                $('#slc_immunity').empty().append($('<option>', {value: null, text: 'None'}));
+                players.map((p, i) => [p.number, i]).sort((a, b) => a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : 0)).forEach(pair => {
+                    let p = players[pair[1]];
+                    $('#slc_immunity').append($('<option>', {value: p.uid, text: '#'+p.number+' '+(p.name ? p.name : p.uid)}));
+                });
+                if (immunityUIDStore) $('#slc_immunity option[value="'+immunityUIDStore+'"]').attr('selected', 'selected');
                 $('#modal_roles').modal();
             });
             $('#btn_shuffle_roles').click(function(e) {
                 // Warn user that roles number is different from players number
                 let rs = getRolesPDF();
+                let immUID = $('#slc_immunity option:selected').val();
+
                 if (Object.values(rs).reduce((e, a) => a + e) !== players.length) {
                     if (!prompt('Number of roles is different from players number. Press \'OK\' to continue', 'I know'))
                         return;
@@ -713,7 +723,10 @@
                     let indCDF = Math.floor(Math.random() * i);
                     let indName = rolesCDF.splice(indCDF, 1)[0]
                     players[i - 1].role = roleNames[indName];
+                    players[i - 1].immunity = false;
                 }
+                if (players.some(p => p.uid === immUID))
+                    players.find(p => p.uid === immUID).immunity = true;
                 sendJSON({cmd: 'cr', uid: userID, data: players});
             });
             $('#btn_numbers_manual').click(function(e) {
@@ -814,6 +827,7 @@
             });
             $('#btn_modal_roles_save').click(function(e) {
                 roleSetup = getRolesPDF();
+                immunityUIDStore = $('#slc_immunity').children('option:selected').val();
                 $('#modal_roles').modal('hide');
             });
             $('#btn_modal_roles_clear').click(e => {
@@ -822,7 +836,7 @@
                 });
                 sendJSON({cmd: 'cr', uid: userID, data: players});
             });
-            $('#btn_modal_close').click(function(e) { setRolesPDF(roleSetup); });
+            // $('#btn_modal_close').click(function(e) { setRolesPDF(roleSetup); });
             $('#btn_modal_close_cross').click(function(e) { setRolesPDF(roleSetup); });
             function getRolesPDF() {
                 let rs = {};
