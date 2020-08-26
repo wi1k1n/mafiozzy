@@ -66,10 +66,12 @@
                             title="Shuffle player numbers">🎲 players</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_roles_setup"
                             title="Shuffle and give roles to the players">⚙ roles</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn_give_role"
+                            title="Click on player send him his role">Give role</button>
                     <button type="button" class="btn btn-danger btn-sm" id="btn_killed_reset"
                             title="Click to unmark all players (both killed and voted)">↺R</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_hide"
-                            title="Click show/hide the list of players">☐ hide players</button>
+                            title="Click show/hide the list of players">☐ hide</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-success btn-sm" id="btn_toggle_com"
@@ -80,8 +82,8 @@
                             title="Let mafia boss to make his check">> Boss</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
                             title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
-                    <button type="button" class="btn btn-warning btn-sm" id="btn_check_game_win_state"
-                            title="(REDUNDANT) Click to check if the game has finished (you should receive notification without this button)">GW</button>
+<!--                    <button type="button" class="btn btn-warning btn-sm" id="btn_check_game_win_state"-->
+<!--                            title="(REDUNDANT) Click to check if the game has finished (you should receive notification without this button)">GW</button>-->
                 </p>
             </div>
             <div id="div_team_btns" class="hidden">
@@ -139,16 +141,25 @@
                             <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_mafboss">
                         </div>
                     </div>
+<!--                    <div class="form-group row">-->
+<!--                        <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>-->
+<!--                        <div class="col-5">-->
+<!--                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">-->
+<!--                        </div>-->
+<!--                    </div>-->
+<!--                    <div class="form-group row">-->
+<!--                        <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>-->
+<!--                        <div class="col-5">-->
+<!--                            <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">-->
+<!--                        </div>-->
+<!--                    </div>-->
                     <div class="form-group row">
-                        <label for="inp_role_manniac" class="col-4 col-form-label">Manniac</label>
+                        <label for="inp_role_mafboss" class="col-5 col-form-label">Immunity for player:</label>
                         <div class="col-5">
-                            <input class="form-control inp_role_setup_number" type="number" value="0" min="0" id="inp_role_manniac">
-                        </div>
-                    </div>
-                    <div class="form-group row">
-                        <label for="inp_role_doctor" class="col-4 col-form-label">Doctor</label>
-                        <div class="col-5">
-                            <input class="form-control inp_role_setup_number" type="number" value="0" id="inp_role_doctor">
+                            <select  class="form-control" type="number" id="inp_immunity">
+                                <option>None</option>
+                                <option>#1 Elena</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -200,6 +211,7 @@
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
 
+        let ws = null;
         // Generate browser instance ID
         let biID = '';
         if (localStorage.hasOwnProperty('biid'))
@@ -246,7 +258,6 @@
                 joinRoom();
             }
         };
-
         function joinRoom() {
             if (!roomID) {
                 $('#lobbyContainer').removeClass('hidden');
@@ -262,7 +273,7 @@
 
             connected = false;
             closed = false;
-            let ws = new WebSocket(HOST, biID.toString()+roomID.toString());
+            ws = new WebSocket(HOST, biID.toString()+roomID.toString());
             console.log('UID: ' + biID.toString()+roomID.toString());
             ws.onopen = function(evt) {
                 connected = true;
@@ -453,6 +464,16 @@
                             'Game is won by INNOCENTs!' :
                             'Game is won by MAFIA!'));
                     return;
+                } else if ('gr' === cmd) {
+                    // Response after 'give role' request
+                    if (code !== 260)
+                        return serverErrReturnedHandler(msg);
+                } else if ('rr' === cmd) {
+                    // Response after 'role received' command
+                    if (code !== 280) {
+                        bootbox.alert('Something went wrong. Please let Game Master know that you already know your role!');
+                        return serverErrReturnedHandler(msg);
+                    }
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -503,6 +524,24 @@
                         } else if (msg.nightMode === 3) {
                             bootbox.alert('Sheriff has made his check!');
                         }
+                } else if ('egr' === cmd) {
+                    // Event on role is given to you by host
+                    if (code != 271)
+                        return serverErrReturnedHandler(msg);
+                    if (msg.role) bootbox.alert('Your role is ' + msg.role, () => {
+                        sendJSON({cmd: 'rr', uid: userID});
+                    });
+                    else bootbox.alert('Game master is dumb and forgot to distribute roles.<br>Please let him know he is stupid!');
+                } else if ('erc' === cmd) {
+                    // Event on role is given to you by host
+                    if (code != 291)
+                        return serverErrReturnedHandler(msg);
+                    if (msg.uid && players.some(p => p.uid === msg.uid)) {
+                        let p = players.find(p => p.uid === msg.uid);
+                        bootbox.alert('Player <b>#' + p.number + ' ' + (p.name ? p.name : p.uid) + '</b> is ready!');
+                    }
+                    else
+                        bootbox.alert('Player ready!');
                 }
                 // Error handler
                 else if ('err' === cmd) {
@@ -755,6 +794,14 @@
                     $('#div_players').addClass('hidden');
                 }
             });
+            $('#btn_give_role').click(function(e) {
+                if ($(this).hasClass('active')){
+                    $(this).removeClass('active');
+                }
+                else {
+                    $(this).addClass('active');
+                }
+            });
             $('#btn_play').click(function(e) {
                 if (!$(this).attr('disabled')) {
                     sendJSON({cmd: 'tm', uid: userID, team: 'player'});
@@ -874,8 +921,14 @@
             function playerClicked(e, puid) {
                 let me = players.filter(p => p.uid === userID)[0];
                 if (iamhost) {
-                    if ($('#btn_delete_player').hasClass('active'))
+                    if ($('#btn_give_role').hasClass('active') && players.find(p => p.uid === puid).team === 'player') {
+                        // $('#btn_give_role').removeClass('active');
+                        return sendJSON({cmd: 'gr', uid: userID, puid: puid});
+                    }
+                    if ($('#btn_delete_player').hasClass('active')) {
+                        $('#btn_delete_player').removeClass('active');
                         return sendJSON({cmd: 'dl', uid: userID, puid: puid});
+                    }
                     if ($('#btn_give_host').hasClass('active')) {
                         $('#btn_give_host').removeClass('active');
                         return sendJSON({cmd: 'gh', uid: userID, puid: puid});

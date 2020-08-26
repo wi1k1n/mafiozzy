@@ -2,12 +2,15 @@ const argv = require('optimist')
     .usage('Usage: $0 -port [num] -wss -debug')
     .argv;
 const crypto = require('crypto');
+const random = require('./util');
 
 let webSocket = null;
 if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
 
 const PORT = argv.port ? parseInt(argv.port) : 6001;
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:7500, std:2.3, min:3000, max:15000};
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:9000, std:3, min:5000, max:20000};
 const USERID_LENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
 const DEBUG = argv.debug ? true : false;
@@ -265,6 +268,17 @@ wss.on('connection', function connection(ws, rq) {
             sendJSON({cmd: 'tn', code: 160});
             // els(roomID, userID, 603);
             etn(roomID, null);
+            let pls = Object.values(rooms[roomID].players).filter(p => p.status === 'playing' && p.team === 'player');
+            if (rooms[roomID].nightMode === 1) { // Mafias turn
+                if (!pls.some(p => p.role === 'MafiaBoss' || p.role === 'Mafia'))
+                    imitateNightActionPerformed(roomID);
+            } else if (rooms[roomID].nightMode === 2) { // MafiaBoss' turn
+                if (!pls.some(p => p.role === 'MafiaBoss'))
+                    imitateNightActionPerformed(roomID);
+            } else if (rooms[roomID].nightMode === 3) { // Sheriff's turn
+                if (!pls.some(p => p.role === 'Sheriff'))
+                    imitateNightActionPerformed(roomID);
+            }
             return;
         } else if ('bc' === cmd) {
             // Player made a 'boss check' request
@@ -361,6 +375,22 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'ws', code: 242, msg: 'You are not the host of room'});
             sendJSON({cmd: 'ws', code: 240, state: gameWinState(roomID)});
             return;
+        } else if ('gr' === cmd) {
+            // Give role command. Triggers egr event for user given in puid
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'gr', code: 261, msg: 'You are not in the room'});
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'gr', code: 262, msg: 'You are not the host of room'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'gr', code: 263, msg: 'puid field not specified'});
+            sendJSON({cmd: 'gr', code: 260});
+            egr(roomID, msg.puid);
+        } else if ('rr' === cmd) {
+            // Role received command. Triggers err event for the host
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'rr', code: 281, msg: 'You are not in the room'});
+            sendJSON({cmd: 'rr', code: 280});
+            erc(roomID, userID);
         }
         return;
     });
@@ -447,6 +477,30 @@ wss.on('connection', function connection(ws, rq) {
     function etf(roomID, uid) {
         // Event on night action finished
         sendJSON({cmd: 'etf', code: 251, nightMode: rooms[roomID].nightMode, uid: uid}, users[rooms[roomID].host].ws);
+    }
+    function egr(roomID, uid) {
+        // Event on give role command. Triggers specified in uid player with his role
+        // 271 - server sends a role to you
+        if (!uid in rooms[roomID]) return;
+        sendJSON({cmd: 'egr', code: 271, role: rooms[roomID].players[uid].role}, users[uid].ws);
+    }
+    function erc(roomID, uid) {
+        // Event on role received command.
+        if (!uid in rooms[roomID]) return;
+        sendJSON({cmd: 'erc', code: 291, uid: uid}, users[rooms[roomID].host].ws);
+    }
+    function imitateNightActionPerformed(roomID) {
+        // Triggers etf() event in some random time from this function call
+        const params = rooms[roomID].nightMode === 1 ?
+            FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION :
+            FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS;
+        let rnd = null;
+        do {
+            rnd = random.normal(params.mean, params.std);
+        } while (rnd < params.min || rnd > params.max);
+        setTimeout(arg => {
+            etf(arg, null);
+        }, rnd, roomID);
     }
     function prepareListOfUsers(roomID) {
         let obj = {
