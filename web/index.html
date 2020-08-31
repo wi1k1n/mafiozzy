@@ -201,7 +201,7 @@
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 <script src="js/lib/bootstrap-input-spinner.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/4.4.0/bootbox.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/5.4.0/bootbox.min.js"></script>
 <script>
     $(window).on('hashchange', function(e) {
         location.reload();
@@ -209,8 +209,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        const HOST = 'wss://infiny.ddns.net:6001';
-        // const HOST = 'ws://localhost:6001';
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -261,7 +261,8 @@
         });
         document.onvisibilitychange = function() {
             if (closed && document.visibilityState === 'visible') {
-                joinRoom();
+                // joinRoom();
+                location.reload();
             }
         };
         function joinRoom() {
@@ -295,8 +296,19 @@
                     if (evt.code === 4001) {
                         updateStatus('Connection closed because another instance has been initiated!');
                     } else if (evt.code === 4002) {
-                        updateStatus('You have been kicked out from the room.');
-                        bootbox.alert('You have been kicked out from the room!');
+                        let msg = 'You have been kicked out from the room.';
+                        updateStatus(msg);
+                        bootbox.alert(msg);
+                    } else if (evt.code === 1002) {
+                        let msg = 'Something went wrong! Please try deleting cookies for this website.';
+                        updateStatus(msg);
+                        bootbox.alert(msg);
+                    } else if (evt.code === 4003) {
+                        let msg = 'Invalid room name. Please check that it is correct or try another one!';
+                        bootbox.alert(msg);
+                    } else if (evt.code === 4004) {
+                        let msg = 'Room has been deleted by administrator!';
+                        bootbox.alert(msg);
                     }
                 } else {
                     // e.g. server process killed or network down; event.code is usually 1006 in this case
@@ -337,9 +349,13 @@
                     userID = msg.uid;
                     console.log('PUID: ' + userID);
                     localStorage.setItem('uid', userID);
-                    askRequestUserName(true);
-                    return sendJSON({cmd: 'jn', uid: userID});
+                    askRequestUserName(true, () => sendJSON({cmd: 'jn', uid: userID}));
+                    return;
                 } else if ('nm' === cmd) {
+                    if (code === 52) {
+                        bootbox.alert('Invalid name. Please only use no more than 16 valid characters');
+                        return;
+                    }
                     if (code !== 50 && code !== 53) {
                         userName = '';
                         return serverErrReturnedHandler(msg);
@@ -566,12 +582,23 @@
             }
 
             $('#btn_change_name').click(function(e) {askRequestUserName();});
-            function askRequestUserName(checkIfNeeded) {
-                let name = userName;
-                if (!checkIfNeeded || !userName) name = prompt('Enter your nickname:', userName);
-                if (name) {
-                    sendJSON({cmd: 'nm', uid: userID, name: name});
-                    userName = name;
+            function askRequestUserName(checkIfNeeded, cb) {
+                // cb (callBack) - function to run when name is set
+                if (!checkIfNeeded || !userName)
+                    bootbox.prompt({
+                        title: 'Enter your nickname:',
+                        value: userName,
+                        callback: name => {
+                            if (name) {
+                                sendJSON({cmd: 'nm', uid: userID, name: name});
+                                userName = name;
+                            }
+                            if (cb) cb();
+                        }
+                    });
+                else {
+                    sendJSON({cmd: 'nm', uid: userID, name: userName});
+                    if (cb) cb();
                 }
             }
             function sendJSON(json) {
@@ -743,7 +770,7 @@
                 // });
                 let box = bootbox.prompt({
                     title: "Give players correct numbers:",
-                    centerVertical: true,
+                    // centerVertical: true,
                     value: players.map(p => p.number).sort().join(' '),
                     callback: function(result) {
                         // console.log(result);
@@ -895,7 +922,7 @@
                 let specs = [];
                 data.players.filter(p => p.team === 'spec').forEach(function(us) {
                     let n = us.name;
-                    if (us.dc) n = '(?)' + n;
+                    if (us.dc) n = '(?) ' + n;
                     if (us.uid === data.host) n = '<u>' + n + '</u>';
                     specs.push($('<span>' + n + '</span>').on('click', e => playerClicked(e, us.uid)));
                 });

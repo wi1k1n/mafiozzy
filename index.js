@@ -4,17 +4,21 @@ const argv = require('optimist')
 const crypto = require('crypto');
 const random = require('./util');
 
-let webSocket = null;
+let websocket = null;
 if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
+const webSocket = require('ws');
 
 const PORT = argv.port ? parseInt(argv.port) : 6001;
 const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:6000, std:2.3, min:2000, max:15000};
 const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:7000, std:3, min:3000, max:20000};
-const USERID_LENGTH = 16;
+const USERID_MAXLENGTH = 16;
+const ROOMID_MAXLENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
-const DEBUG = argv.debug ? true : false;
+const DEBUG = !!argv.debug;
+const MOD_PWD = argv.pwd ? argv.pwd : null;
 const TEAMS = ['spec', 'player'];
+if (!MOD_PWD) console.warn('Moderation password is not specified. Specify it with \'--pwd PASSWORD\' flag if necessary.');
 
 let rooms = {};
 let users = {};
@@ -28,12 +32,19 @@ wss.on('listening', function listening() {
 wss.on('connection', function connection(ws, rq) {
     let biidAndRID = parseWebsocketProtocol(rq.headers);
     if (!biidAndRID || biidAndRID.length !== 2) {
-        console.warn('Invalid websocket protocol value!');
+        if (MOD_PWD && rq.headers.hasOwnProperty('sec-websocket-protocol') && rq.headers['sec-websocket-protocol'] === MOD_PWD) {
+            return onModeratorConnected(ws, rq);
+        }
+        if (DEBUG) console.warn('Invalid websocket protocol value or moderation password!');
         ws.close(1002, 'Invalid websocket protocol value. Must consist of roomID and biID!');
         return;
     }
     let biID = biidAndRID[0];
     let roomID = biidAndRID[1];
+    if (!validateRoomID(roomID)) {
+        ws.close(4003, 'Invalid roomID. Please try another roomID!');
+        return;
+    }
     let connectionID = getConnectionHash(rq.headers);
     if (DEBUG) console.log('[dbg] #' + connectionID + ' connected to room #'+roomID+' with headers:\n' + JSON.stringify(rq.headers));
     // Add new connection to user list and terminate previous connection if there was one
@@ -402,7 +413,7 @@ wss.on('connection', function connection(ws, rq) {
         return;
     });
     ws.on('close', function(code, reason) {
-        if (connectionID in rooms[roomID].players) {
+        if (roomID in rooms && connectionID in rooms[roomID].players) {
             rooms[roomID].players[connectionID].dc = true;
             els(null, connectionID, 601);
         }
@@ -522,17 +533,15 @@ wss.on('connection', function connection(ws, rq) {
         }
         return obj;
     }
-
     function sendJSON(json, wsock) {
         wsock = wsock ? wsock : ws;
-        json['timestamp'] = new Date().getTime();
-        if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(json));
-        wsock.send(JSON.stringify(json));
+        sendDICT(json, wsock);
     }
 
     function Room(rid, players, host, locked, playing) {
         if (!rid) console.warn('[Room] Invalid roomID! Something goes wrong!');
         this.roomID = rid;
+        this.tsCreated = new Date().getTime();
         this.players = players ? players : {};
         this.host = host ? host : null;
         this.locked = locked ? locked : false;
@@ -559,13 +568,70 @@ wss.on('connection', function connection(ws, rq) {
         this.dc = false;
     }
 });
+function onModeratorConnected(ws, rq) {
+    let connID = getConnectionHash(rq.headers);
+    console.log(`Moderator ${connID} connected!`);
+    ws.on('message', function incoming(msgRaw) {
+        if (DEBUG) console.log('[dbg] << ' + msgRaw);
+        let msg = null;
+        try {
+            msg = JSON.parse(msgRaw);
+        } catch (e) {
+            return console.warn('Could not parse client request: ' + msgRaw);
+        }
+        // Server response must contain 'cmd' field
+        if (!msg.hasOwnProperty('cmd'))
+            return console.warn('Invalid client request: ' + msgRaw);
+        let cmd = msg.cmd;
+
+        if ('rl' === cmd) {
+            // Moderator requested room list
+            return sendJSON({cmd: 'rl', code: 10000, rooms: JSON.stringify(rooms)});
+        } else if ('gh' === cmd) {
+            // Moderator requested to transfer hostage to other player
+            if (!msg.hasOwnProperty('rid'))
+                return sendJSON({cmd: 'gh', code: 10101, msg: 'rid field not specified'});
+            if (!rooms.hasOwnProperty(msg.rid))
+                return sendJSON({cmd: 'gh', code: 10102, msg: 'room not found'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'gh', code: 10013, msg: 'puid field not specified'});
+            if (!users.hasOwnProperty(msg.puid))
+                return sendJSON({cmd: 'gh', code: 10014, msg: 'user not found'});
+            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid].ws);
+            rooms[msg.rid].host = msg.puid;
+            sendJSON({cmd: 'gh', code: 10100});
+            return;
+        } else if ('dr' === cmd) {
+            // Moderator requested to delete room
+            if (!msg.hasOwnProperty('rid'))
+                return sendJSON({cmd: 'dr', code: 10201, msg: 'rid field not specified'});
+            if (!rooms.hasOwnProperty(msg.rid))
+                return sendJSON({cmd: 'dr', code: 10202, msg: 'room not found'});
+            Object.keys(rooms[msg.rid].players).forEach(uid => {
+                if (users.hasOwnProperty(uid)) {
+                    let ws = users[uid].ws;
+                    if (ws.readyState === webSocket.OPEN || ws.readyState === webSocket.CONNECTING)
+                        ws.close(4004, 'Administrator has deleted this room');
+                }
+            });
+            delete rooms[msg.rid];
+            sendJSON({cmd: 'dr', code: 10200});
+            return;
+        }
+    });
+
+    function sendJSON(json, wsock) {
+        wsock = wsock ? wsock : ws;
+        sendDICT(json, wsock);
+    }
+}
 function getConnectionHash(headers) {
     let postfix = '';
     if (headers.hasOwnProperty('sec-websocket-protocol'))
         postfix = headers['sec-websocket-protocol'];
     return crypto.createHash('md5')
         .update(headers['origin'] + '=>' + headers['user-agent'] + postfix)
-        .digest("hex").substring(0, USERID_LENGTH);
+        .digest("hex").substring(0, USERID_MAXLENGTH);
 }
 function parseWebsocketProtocol(headers) {
     if (!headers.hasOwnProperty('sec-websocket-protocol')) return null;
@@ -573,12 +639,23 @@ function parseWebsocketProtocol(headers) {
     if (protocol.length <= BROWSERINSTANCEID_LENGTH) return null;
     return [protocol.substring(0, BROWSERINSTANCEID_LENGTH), protocol.substring(BROWSERINSTANCEID_LENGTH)];
 }
-function validateChatID(chatID) {
-    console.warn('TODO: chatID validation');
-    return chatID;
+function validateRoomID(roomID) {
+    // console.warn('TODO: chatID validation');
+    return roomID.length > 0
+        && roomID.length <= ROOMID_MAXLENGTH
+        && /^[a-z0-9]+$/i.test(roomID);
+    // return chatID;
 }
 function validateName(name) {
-    console.warn('TODO: name validation');
-    return name;
+    // console.warn('TODO: name validation');
+    return name.length > 0
+        && name.length <= USERID_MAXLENGTH
+        && /^[\wа-яё0-9\s-.,!?/\\]+$/i.test(name);
+    // return name;
+}
+function sendDICT(dict, wsock) {
+    dict['timestamp'] = new Date().getTime();
+    if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(dict));
+    wsock.send(JSON.stringify(dict));
 }
 websocket.listen();
