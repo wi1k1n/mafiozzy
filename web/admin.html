@@ -28,6 +28,9 @@
         .italic {
             font-style: italic;
         }
+        .no-bullet {
+            list-style-type: none;
+        }
     </style>
 </head>
 <body>
@@ -77,8 +80,8 @@
         });
         function connect2server(pwd) {
             let DEBUG = true;
-            // const HOST = 'wss://infiny.ddns.net:6001';
-            const HOST = 'ws://localhost:6001';
+            const HOST = 'wss://infiny.ddns.net:6001';
+            // const HOST = 'ws://localhost:6001';
             const OPTIONS = { weekday: 'short', year: '2-digit', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' };
 
             let ws = new WebSocket(HOST, pwd);
@@ -128,7 +131,7 @@
                         let duration = null;
                         if (r.hasOwnProperty('tsCreated')) duration = new Date(r.tsCreated).toLocaleString('en-GB', OPTIONS);
                         $('button', card).text(r.roomID + (duration ? ` (${duration})` : ''));
-                        let plList = $('<ul></ul>');
+                        let plList = $('<ul></ul>').addClass('no-bullet');
                         Object.values(r.players).forEach(pl => {
                             let plstr = (pl.dc ? '(?) ' : '') + (pl.team === 'player' ? `#${pl.number} ` : '') + (pl.name ? pl.name : pl.uid);
                             let li = $('<li></li>').text(plstr).attr('title', pl.uid);

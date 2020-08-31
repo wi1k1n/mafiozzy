@@ -182,6 +182,12 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'kl', code: 103, msg: 'Player you r killing is not playing ATM.'});
             if (killed.status !== 'playing')
                 return sendJSON({cmd: 'kl', code: 106, msg: 'Player you r killing has already been killed.'});
+
+            if (rooms[roomID].nightMode !== 1)
+                return sendJSON({cmd: 'kl', code: 1091, msg: 'You can only kill at night on mafia turn'});
+            if (rooms[roomID].nightActionPerformed)
+                return sendJSON({cmd: 'kl', code: 1092, msg: 'You have already made an assassination this night'});
+
             if (rooms[roomID].currentTurn === 1 && killed.immunity)
                 return sendJSON({cmd: 'kl', code: 107, msg: 'Player you r killing has immunity for the 1st round.'});
 
@@ -204,15 +210,11 @@ wss.on('connection', function connection(ws, rq) {
                     let cp = rooms[roomID].players[puid];
                     // return cp.role === 'Mafia' && cp.number < rooms[roomID].players[userID].number;
                     return cp.number < rooms[roomID].players[userID].number;
-                }))
+                })) {
                     // There is at least 1 more Mafia with lower number value
                     return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
+                }
             }
-
-            if (rooms[roomID].nightMode !== 1)
-                return sendJSON({cmd: 'kl', code: 1091, msg: 'You can only kill at night on mafia turn'});
-            if (rooms[roomID].nightActionPerformed)
-                return sendJSON({cmd: 'kl', code: 1092, msg: 'You have already made an assassination this night'});
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             rooms[roomID].nightActionPerformed = true;
