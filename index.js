@@ -445,12 +445,40 @@ wss.on('connection', function connection(ws, rq) {
             }
             sendJSON({cmd: 'gr', code: 260});
             egr(roomID, msg.puid);
+            return;
         } else if ('rr' === cmd) {
             // Role received command. Triggers err event for the host
             if (!(userID in rooms[roomID].players))
                 return sendJSON({cmd: 'rr', code: 281, msg: 'You are not in the room'});
             sendJSON({cmd: 'rr', code: 280});
             erc(roomID, userID);
+            return;
+        } else if ('hl' === cmd) {
+            // Help command. Player asked for help
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'hl', code: 301, msg: 'You are not in the room'});
+            if (users[rooms[roomID].host].dc)
+                return sendJSON({cmd: 'hl', code: 302, msg: 'Host is disconnected. Request is not proceeded'});
+
+            sendJSON({cmd: 'ehq', code: 311, puid: userID}, users[rooms[roomID].host]);
+            sendJSON({cmd: 'hl', code: 300});
+            return;
+        } else if ('hr' === cmd) {
+            // Help response. Host responds to player
+            if (!(userID in rooms[roomID].players))
+                return sendJSON({cmd: 'hr', code: 321, msg: 'You are not in the room'});
+            if (rooms[roomID].host !== userID)
+                return sendJSON({cmd: 'hr', code: 322, msg: 'You are not the host of the room'});
+            if (!msg.hasOwnProperty('data'))
+                return sendJSON({cmd: 'hr', code: 323, msg: 'data field not specified'});
+            if (!msg.hasOwnProperty('puid'))
+                return sendJSON({cmd: 'hr', code: 324, msg: 'puid field not specified'});
+            if (!(msg.puid in rooms[roomID].players))
+                return sendJSON({cmd: 'hr', code: 325, msg: 'puid is not found'});
+
+            sendJSON({cmd: 'hr', code: 320});
+            sendJSON({cmd: 'ehr', code: 331, data: msg.data}, users[msg.puid]);
+            return;
         }
         return;
     });

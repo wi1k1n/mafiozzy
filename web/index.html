@@ -67,6 +67,8 @@
                             title="Set numbers to players in manual mode"># Manual</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_give_host"
                             title="Click on player to give him host">Host</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_show_help_request"
+                            title="Show help request dialog">Help request</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players"
@@ -101,9 +103,11 @@
                             title="Move from player list to spectators">Spectate</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_change_name"
                             title="Click to change displayed name">Change name</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btn_help"
+                            title="Click to notify game master you need help">Help me!</button>
                 </p>
             </div>
-            <p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p>
+            <div><p id="p_spectators_container" class="hidden">Spectators: <span id="spectators"></span></p></div>
             <div id="div_players" class="hidden">
                 <ul class="list-group" id="list_players">
                 </ul>
@@ -256,6 +260,8 @@
         };
         let immunityUIDStore = null;
         let players = null;
+        let bbmsgHelp = null;
+        let bbmsgHelpRequests = [];
 
         if (DEBUG) $('#debugContainer').removeClass('hidden');
 
@@ -402,7 +408,7 @@
                 } else if ('tm' === cmd) {
                     // Response after 'change team' request
                     if (code === 74) {
-                        updateStatus('This game is in process ATM.');
+                        // updateStatus('This game is in process ATM.');
                         bootbox.alert('Cannot change team. This game is in process ATM.');
                     }
                     if (code !== 70)
@@ -431,7 +437,7 @@
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
                 } else if ('vt' === cmd) {
-                    // Response after 'kill player' request
+                    // Response after 'vote player' request
                     if (code !== 120)
                         return serverErrReturnedHandler(msg);
                     return sendJSON({cmd: 'ls', uid: userID});
@@ -511,6 +517,20 @@
                         bootbox.alert('Something went wrong. Please let Game Master know that you already know your role!');
                         return serverErrReturnedHandler(msg);
                     }
+                } else if ('hl' === cmd) {
+                    // Response after 'help' command
+                    if (code !== 300) {
+                        bootbox.alert('ERROR! Game Master has NOT seen your request!');
+                        return serverErrReturnedHandler(msg);
+                    }
+                    if (bbmsgHelp) {
+                        $('.bootbox-body', bbmsgHelp).text('Waiting for Game Master\'s response...');
+                    }
+                } else if ('hr' === cmd) {
+                    // Response after 'help response' command transmitted
+                    if (code !== 310) {
+                        return serverErrReturnedHandler(msg);
+                    }
                 }
                 // Server events
                 else if ('els' === cmd) {
@@ -580,6 +600,32 @@
                     }
                     else
                         bootbox.alert('Player ready!');
+                } else if ('ehq' === cmd) {
+                    // Event on help requested
+                    if (code === 311) {
+                        let bbmsg = bootbox.dialog({
+                            message: '<div class="text-center mb-0"><p>['+(bbmsgHelpRequests.length+1)+'] Help request!</p></div>',
+                        });
+                        bbmsgHelpRequests.push(msg.puid);
+                    } else {
+                        return serverErrReturnedHandler(msg);
+                    }
+                } else if ('ehr' === cmd) {
+                    // Event on help received
+                    let showMsg = '';
+                    if (code === 331) {
+                        if (msg.data === '::try_again::') {
+                            showMsg = 'Reload the page and try again';
+                        } else {
+                            showMsg = msg.data;
+                        }
+                        if (bbmsgHelp) {
+                            bbmsgHelp.modal('hide');
+                            bootbox.alert(showMsg);
+                        }
+                    } else {
+                        return serverErrReturnedHandler(msg);
+                    }
                 }
                 // Error handler
                 else if ('err' === cmd) {
@@ -614,6 +660,16 @@
                     if (cb) cb();
                 }
             }
+            $('#btn_help').click((e) => {
+                bbmsgHelp = bootbox.dialog({
+                    message: '<p class="text-center mb-0">Your request is anonymous!</p><br>' +
+                        '<p><button class="btn btn-danger" id="btn_actdsntwrk" value="adsntwrk">My action does not work</button></p>',
+                });
+                $('#btn_actdsntwrk').click(function() {
+                    sendJSON({cmd: 'hl', uid: userID, reason: $(this).val()});
+                    // $(this).parent().text('Waiting for Game Master\'s response...');
+                });
+            });
             function sendJSON(json) {
                 json['timestamp'] = new Date().getTime();
                 if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(json));
@@ -843,6 +899,45 @@
                     $('#btn_toggle_night').removeClass('active');
                     $('#btn_vote').removeClass('active');
                     $('#btn_delete_player').removeClass('active');
+                }
+            });
+            $('#btn_show_help_request').click(function(e) {
+                function showHelpRequest(ind) {
+                    let curbbmsg = bootbox.dialog({
+                        title: '['+(ind+1)+'] Help Request',
+                        message: '<button class="btn btn-warning" id="btn_help_request_tryagain">Try again</button>',
+                    });
+                    $('#btn_help_request_tryagain').click(function(e) {
+                        sendJSON({cmd: 'hr', code: 321, uid: userID, puid: bbmsgHelpRequests[ind], data: '::try_again::'});
+                        bbmsgHelpRequests[ind] = null;
+                        if (!bbmsgHelpRequests.some(e => e)) bbmsgHelpRequests = [];
+                        curbbmsg.modal('hide');
+                    });
+                }
+                if (bbmsgHelpRequests.length) {
+                    if (bbmsgHelpRequests.length > 1) {
+                        let opts = bbmsgHelpRequests.map(function(e, i) {
+                            if (e) return {
+                                        text: '#'+(i+1),
+                                        value: i
+                                    };
+                            return null;
+
+                        }).filter(e => e);
+                        bootbox.prompt({
+                            title: "Choose help request to open",
+                            inputType: 'radio',
+                            inputOptions: opts,
+                            callback: function (rslt) {
+                                if (bbmsgHelpRequests[rslt])
+                                    showHelpRequest(parseInt(rslt));
+                            }
+                        });
+                    } else {
+                        showHelpRequest(0);
+                    }
+                } else {
+                    bootbox.alert('No active help requests');
                 }
             });
             $('#btn_hide').click(function(e) {
