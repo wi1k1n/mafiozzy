@@ -68,7 +68,7 @@
                     <button type="button" class="btn btn-primary btn-sm" id="btn_give_host"
                             title="Click on player to give him host">Host</button>
                     <button type="button" class="btn btn-warning btn-sm" id="btn_show_help_request"
-                            title="Show help request dialog">Help request</button>
+                            title="Show help request dialog">Help</button>
                 </p>
                 <p>
                     <button type="button" class="btn btn-info btn-sm" id="btn_shuffle_players"
@@ -91,6 +91,8 @@
                             title="Let mafia boss to make his check">> Boss</button>
                     <button type="button" class="btn btn-primary btn-sm" id="btn_vote"
                             title="Click on player to mark him 'voted' if this enabled">✓ vote</button>
+                    <button type="button" class="btn btn-info btn-sm" id="btn_timer"
+                            title="Click to start/pause timer">⏰ Timer</button>
 <!--                    <button type="button" class="btn btn-warning btn-sm" id="btn_check_game_win_state"-->
 <!--                            title="(REDUNDANT) Click to check if the game has finished (you should receive notification without this button)">GW</button>-->
                 </p>
@@ -223,6 +225,8 @@
         const DEBUG = true;
         const RID_LENGTH = 5;
         const BIID_LENGTH = 4;
+        const TIMER_WARNING = 30000;
+        const TIMER_DANGER = 50000;
 
         let ws = null;
         // Generate browser instance ID
@@ -262,6 +266,7 @@
         let players = null;
         let bbmsgHelp = null;
         let bbmsgHelpRequests = [];
+        let timerIntervalHandle = null;
 
         if (DEBUG) $('#debugContainer').removeClass('hidden');
 
@@ -876,6 +881,41 @@
                     $('#btn_toggle_night').removeClass('active');
                     $('#btn_delete_player').removeClass('active');
                     $('#btn_give_host').removeClass('active');
+                }
+            });
+            $('#btn_timer').click(function(e) {
+                function updateTimerValue(ms) {
+                    if (ms === null) {
+                        $('#btn_timer')
+                            .text('⏰ Timer')
+                            .removeAttr('started')
+                            .removeClass('btn-warning btn-danger')
+                            .addClass('btn-info');
+                        return;
+                    }
+                    $('#btn_timer')
+                        .text('⏰ '+new Date(ms).toTimeString().substr(3, 5))
+                        .attr('started', 'started');
+                    if (ms < TIMER_WARNING)
+                        $('#btn_timer')
+                            .removeClass('btn-warning btn-danger')
+                            .addClass('btn-info');
+                    else if (ms < TIMER_DANGER)
+                        $('#btn_timer')
+                            .removeClass('btn-info btn-danger')
+                            .addClass('btn-warning');
+                    else
+                        $('#btn_timer')
+                            .removeClass('btn-warning btn-info')
+                            .addClass('btn-danger');
+                }
+                if ($(this).attr('started')) {
+                    clearInterval(timerIntervalHandle);
+                    updateTimerValue(null);
+                } else {
+                    updateTimerValue(0);
+                    let ctm = new Date().getTime();
+                    timerIntervalHandle = setInterval(() => updateTimerValue(new Date().getTime() - ctm), 1000);
                 }
             });
             $('#btn_check_game_win_state').click(e => {
