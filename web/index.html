@@ -213,8 +213,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        const HOST = 'wss://infiny.ddns.net:6001';
-        // const HOST = 'ws://localhost:6001';
+        // const HOST = 'wss://infiny.ddns.net:6001';
+        const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -500,8 +500,11 @@
                     return;
                 } else if ('gr' === cmd) {
                     // Response after 'give role' request
-                    if (code !== 260)
+                    if (code !== 260 && code !== 265)
                         return serverErrReturnedHandler(msg);
+                    if (code === 265) {
+                        bootbox.alert('Player is disconnected. No role has been sent!');
+                    }
                 } else if ('rr' === cmd) {
                     // Response after 'role received' command
                     if (code !== 280) {

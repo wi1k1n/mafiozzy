@@ -1,32 +1,60 @@
 const argv = require('optimist')
-    .usage('Usage: $0 -port [num] -wss -debug')
+    .usage('Usage: $0 --port [num] --wss --pwd [str] --logs')
     .argv;
 const crypto = require('crypto');
 const random = require('./util');
+const path = require('path');
+const fs = require('fs');
+const winston = require('winston');
 
 let websocket = null;
 if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
 const webSocket = require('ws');
 
+const LOGS2FILE = !!argv.logs;
+const MOD_PWD = argv.pwd ? argv.pwd : null;
 const PORT = argv.port ? parseInt(argv.port) : 6001;
+const LOGPORT = 3000;
+
 const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:6000, std:2.3, min:2000, max:15000};
 const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:7000, std:3, min:3000, max:20000};
 const USERID_MAXLENGTH = 16;
 const ROOMID_MAXLENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
-const DEBUG = !!argv.debug;
-const MOD_PWD = argv.pwd ? argv.pwd : null;
+const LOGSDIR = path.join(__dirname, 'logs');
 const TEAMS = ['spec', 'player'];
-if (!MOD_PWD) console.warn('Moderation password is not specified. Specify it with \'--pwd PASSWORD\' flag if necessary.');
+
+function getRoomLogger(roomID) {
+    let ts = [new winston.transports.File({ filename: path.join(LOGSDIR, (roomID ? roomID : 'combined')+'.log') })];
+    if (!roomID) ts.push(new winston.transports.Console());
+    const logger = winston.createLogger({
+        level: LOGS2FILE ? 'verbose' : 'info',
+        format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json(),
+        ),
+        transports: ts,
+    });
+    return logger;
+}
+const logger = getRoomLogger(null);
+if (LOGS2FILE) {
+    if (!fs.existsSync(LOGSDIR)) {
+        fs.mkdirSync(LOGSDIR);
+    }
+    logger.info('Logging to file is ON. Find logs in ' + LOGSDIR);
+} else
+    logger.warn('Logging to file is OFF.');
+if (!MOD_PWD) logger.warn('Moderation password is not specified. Specify it with \'--pwd PASSWORD\' flag if necessary.');
 
 let rooms = {};
-let users = {};
+var users = {};
 
 // const wss = new webSocket.Server({ port: 6001 });
 const wss = websocket.websocketServer(PORT);
 wss.on('listening', function listening() {
-    console.log('Server started on port %s', PORT);
+    logger.info('############### Server started on port '+PORT+' ###############');
 });
 
 wss.on('connection', function connection(ws, rq) {
@@ -35,7 +63,7 @@ wss.on('connection', function connection(ws, rq) {
         if (MOD_PWD && rq.headers.hasOwnProperty('sec-websocket-protocol') && rq.headers['sec-websocket-protocol'] === MOD_PWD) {
             return onModeratorConnected(ws, rq);
         }
-        if (DEBUG) console.warn('Invalid websocket protocol value or moderation password!');
+        logger.warn('Invalid websocket protocol value or moderation password!');
         ws.close(1002, 'Invalid websocket protocol value. Must consist of roomID and biID!');
         return;
     }
@@ -46,7 +74,9 @@ wss.on('connection', function connection(ws, rq) {
         return;
     }
     let connectionID = getConnectionHash(rq.headers);
-    if (DEBUG) console.log('[dbg] #' + connectionID + ' connected to room #'+roomID+' with headers:\n' + JSON.stringify(rq.headers));
+    logger.verbose('#' + connectionID + ' connected to room #'+roomID+' with headers:\n' + JSON.stringify(rq.headers));
+    if (rooms[roomID])
+        rooms[roomID].logger.verbose('['+connectionID+']: connected');
     // Add new connection to user list and terminate previous connection if there was one
     if (!users.hasOwnProperty(connectionID))
         users[connectionID] = new User(connectionID);
@@ -55,17 +85,17 @@ wss.on('connection', function connection(ws, rq) {
     users[connectionID].ws = ws;
     if (!rooms.hasOwnProperty(roomID)) rooms[roomID] = new Room(roomID, {}, connectionID);
     ws.on('message', function incoming(msgRaw) {
-        if (DEBUG) console.log('[dbg] << ' + msgRaw);
+        logger.verbose('(rx): ' + msgRaw);
         let msg = null;
         try {
             msg = JSON.parse(msgRaw);
         } catch (e) {
-            return console.warn('Could not parse client request: ' + msgRaw);
+            return logger.warn('Could not parse client request: ' + msgRaw);
         }
 
         // Server response must contain 'cmd' field
         if (!msg.hasOwnProperty('cmd'))
-            return console.warn('Invalid client request: ' + msgRaw);
+            return logger.warn('Invalid client request: ' + msgRaw);
         let cmd = msg.cmd;
 
         // User requested id
@@ -81,6 +111,8 @@ wss.on('connection', function connection(ws, rq) {
         if (!userID || !users.hasOwnProperty(userID))
             return sendJSON({cmd: 'err', code: 1, msg: 'UserID is not found. Use "id" command to get your userID.'});
 
+        if (rooms[roomID])
+            rooms[roomID].logger.verbose('['+connectionID+'] >> '+JSON.stringify(msg));
         // User set his name
         if ('nm' === cmd) {
             if (!msg.hasOwnProperty('name'))
@@ -353,7 +385,7 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'dl', code: 203, msg: 'puid field not specified'});
             if (rooms[roomID].host === msg.puid)
                 rooms[roomID].locked = false;
-            sendJSON({cmd: 'dl', code: 204, msg: 'You have been kicked from this room!'}, users[msg.puid].ws);
+            sendJSON({cmd: 'dl', code: 204, msg: 'You have been kicked from this room!'}, users[msg.puid]);
             users[msg.puid].ws.close(4002, 'You have been kicked from this room!');
             delete users[msg.puid];
             delete rooms[roomID].players[msg.puid];
@@ -369,7 +401,7 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'gh', code: 212, msg: 'You are not the host of room'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'gh', code: 213, msg: 'puid field not specified'});
-            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid].ws);
+            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid]);
             rooms[roomID].host = msg.puid;
             sendJSON({cmd: 'gh', code: 210});
             els(roomID, userID, 605);
@@ -403,6 +435,11 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'gr', code: 262, msg: 'You are not the host of room'});
             if (!msg.hasOwnProperty('puid'))
                 return sendJSON({cmd: 'gr', code: 263, msg: 'puid field not specified'});
+            if (!(msg.puid in rooms[roomID].players))
+                return sendJSON({cmd: 'gr', code: 264, msg: 'puid is not found'});
+            if (rooms[roomID].players[msg.puid].dc) {
+                return sendJSON({cmd: 'gr', code: 265, msg: 'This user is disconnected. No role sent'});
+            }
             sendJSON({cmd: 'gr', code: 260});
             egr(roomID, msg.puid);
         } else if ('rr' === cmd) {
@@ -443,7 +480,7 @@ wss.on('connection', function connection(ws, rq) {
         if (roomID) {
             Object.keys(rooms[roomID].players).forEach(function(uid) {
                 if (uid !== exceptUID)
-                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(roomID)}, users[uid].ws);
+                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(roomID)}, users[uid]);
             });
             return;
         }
@@ -451,7 +488,7 @@ wss.on('connection', function connection(ws, rq) {
         Object.keys(rooms).forEach(function(rid) {
             Object.keys(rooms[rid].players).forEach(function(uid) {
                 if (rooms[rid].players.hasOwnProperty(exceptUID) && uid !== exceptUID)
-                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(rid)}, users[uid].ws);
+                    sendJSON({cmd: 'els', code: code, data: prepareListOfUsers(rid)}, users[uid]);
             });
         });
     }
@@ -462,7 +499,7 @@ wss.on('connection', function connection(ws, rq) {
         let playing = rooms[roomID].playing;
         Object.keys(rooms[roomID].players).forEach(function(uid) {
             if (uid !== exceptUID)
-                sendJSON({cmd: 'elg', code: 151, state: playing}, users[uid].ws);
+                sendJSON({cmd: 'elg', code: 151, state: playing}, users[uid]);
         });
         return;
     }
@@ -473,7 +510,7 @@ wss.on('connection', function connection(ws, rq) {
         let nightMode = rooms[roomID].nightMode;
         Object.keys(rooms[roomID].players).forEach(function(uid) {
             if (uid !== exceptUID)
-                sendJSON({cmd: 'elg', code: 171, state: nightMode}, users[uid].ws);
+                sendJSON({cmd: 'elg', code: 171, state: nightMode}, users[uid]);
         });
         return;
     }
@@ -492,22 +529,22 @@ wss.on('connection', function connection(ws, rq) {
     }
     function ews(roomID) {
         // Event win state - sends to host command that game finished
-        sendJSON({cmd: 'ews', code: 231, state: gameWinState(roomID)}, users[rooms[roomID].host].ws);
+        sendJSON({cmd: 'ews', code: 231, state: gameWinState(roomID)}, users[rooms[roomID].host]);
     }
     function etf(roomID, uid) {
         // Event on night action finished
-        sendJSON({cmd: 'etf', code: 251, nightMode: rooms[roomID].nightMode, uid: uid}, users[rooms[roomID].host].ws);
+        sendJSON({cmd: 'etf', code: 251, nightMode: rooms[roomID].nightMode, uid: uid}, users[rooms[roomID].host]);
     }
     function egr(roomID, uid) {
         // Event on give role command. Triggers specified in uid player with his role
         // 271 - server sends a role to you
         if (!uid in rooms[roomID]) return;
-        sendJSON({cmd: 'egr', code: 271, role: rooms[roomID].players[uid].role}, users[uid].ws);
+        sendJSON({cmd: 'egr', code: 271, role: rooms[roomID].players[uid].role}, users[uid]);
     }
     function erc(roomID, uid) {
         // Event on role received command.
         if (!uid in rooms[roomID]) return;
-        sendJSON({cmd: 'erc', code: 291, uid: uid}, users[rooms[roomID].host].ws);
+        sendJSON({cmd: 'erc', code: 291, uid: uid}, users[rooms[roomID].host]);
     }
     function imitateNightActionPerformed(roomID) {
         // Triggers etf() event in some random time from this function call
@@ -535,13 +572,21 @@ wss.on('connection', function connection(ws, rq) {
         }
         return obj;
     }
-    function sendJSON(json, wsock) {
-        wsock = wsock ? wsock : ws;
+    function sendJSON(json, user) {
+        if (!user) {
+            if (rooms[roomID])
+                rooms[roomID].logger.verbose('['+connectionID+'] << '+JSON.stringify(json));
+        }
+        else
+            if (rooms[roomID]) {
+                rooms[roomID].logger.verbose('['+user.uid+'] << ' + JSON.stringify(json))
+            }
+        wsock = user ? user.ws : ws;
         sendDICT(json, wsock);
     }
 
     function Room(rid, players, host, locked, playing) {
-        if (!rid) console.warn('[Room] Invalid roomID! Something goes wrong!');
+        if (!rid) logger.warn('[Room] Invalid roomID! Something goes wrong!');
         this.roomID = rid;
         this.tsCreated = new Date().getTime();
         this.players = players ? players : {};
@@ -551,15 +596,17 @@ wss.on('connection', function connection(ws, rq) {
         this.nightMode = 0;
         this.nightActionPerformed = false;  // Flag not to allow to spam checks and kills
         this.currentTurn = 0; // Counter for number of mafia's turns (used for immunity)
+        this.logger = getRoomLogger(rid);
+        this.logger.info('########## Room created ##########');
     }
     function User(uid, ws, name) {
-        if (!uid) console.warn('[User] Invalid userID! Something goes wrong!');
+        if (!uid) logger.warn('[User] Invalid userID! Something goes wrong!');
         this.uid = uid;
         this.ws = ws ? ws : null;
         this.name = name ? name.toString() : '';
     }
     function Player(uid, team, number, role, status, immunity) {
-        if (!uid) console.warn('[Player] Invalid userID! Something goes wrong!');
+        if (!uid) logger.warn('[Player] Invalid userID! Something goes wrong!');
         this.uid = uid ? uid : null;
         this.team = team ? team : 'spec';
         this.name = uid in users ? users[uid].name : '';
@@ -572,18 +619,18 @@ wss.on('connection', function connection(ws, rq) {
 });
 function onModeratorConnected(ws, rq) {
     let connID = getConnectionHash(rq.headers);
-    console.log(`Moderator ${connID} connected!`);
+    logger.info(`Moderator ${connID} connected!`);
     ws.on('message', function incoming(msgRaw) {
-        if (DEBUG) console.log('[dbg] << ' + msgRaw);
+        logger.info('(rx): ' + msgRaw);
         let msg = null;
         try {
             msg = JSON.parse(msgRaw);
         } catch (e) {
-            return console.warn('Could not parse client request: ' + msgRaw);
+            return logger.warn('Could not parse client request: ' + msgRaw);
         }
         // Server response must contain 'cmd' field
         if (!msg.hasOwnProperty('cmd'))
-            return console.warn('Invalid client request: ' + msgRaw);
+            return logger.warn('Invalid client request: ' + msgRaw);
         let cmd = msg.cmd;
 
         if ('rl' === cmd) {
@@ -599,7 +646,7 @@ function onModeratorConnected(ws, rq) {
                 return sendJSON({cmd: 'gh', code: 10013, msg: 'puid field not specified'});
             if (!users.hasOwnProperty(msg.puid))
                 return sendJSON({cmd: 'gh', code: 10014, msg: 'user not found'});
-            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid].ws);
+            sendJSON({cmd: 'gh', code: 214, msg: 'The host transferred the hostage to you!'}, users[msg.puid]);
             rooms[msg.rid].host = msg.puid;
             sendJSON({cmd: 'gh', code: 10100});
             return;
@@ -614,6 +661,7 @@ function onModeratorConnected(ws, rq) {
                     let ws = users[uid].ws;
                     if (ws.readyState === webSocket.OPEN || ws.readyState === webSocket.CONNECTING)
                         ws.close(4004, 'Administrator has deleted this room');
+                    delete users[uid];
                 }
             });
             delete rooms[msg.rid];
@@ -642,14 +690,12 @@ function parseWebsocketProtocol(headers) {
     return [protocol.substring(0, BROWSERINSTANCEID_LENGTH), protocol.substring(BROWSERINSTANCEID_LENGTH)];
 }
 function validateRoomID(roomID) {
-    // console.warn('TODO: chatID validation');
     return roomID.length > 0
         && roomID.length <= ROOMID_MAXLENGTH
         && /^[a-z0-9]+$/i.test(roomID);
     // return chatID;
 }
 function validateName(name) {
-    // console.warn('TODO: name validation');
     return name.length > 0
         && name.length <= USERID_MAXLENGTH
         && /^[\wа-яё0-9\s-.,!?/\\]+$/i.test(name);
@@ -657,7 +703,16 @@ function validateName(name) {
 }
 function sendDICT(dict, wsock) {
     dict['timestamp'] = new Date().getTime();
-    if (DEBUG) console.log('[dbg] >> ' + JSON.stringify(dict));
+    logger.verbose('(tx): ' + JSON.stringify(dict));
     wsock.send(JSON.stringify(dict));
 }
+
+
 websocket.listen();
+
+// Start logging server
+const app = require('express')();
+require('winston-logs-display/app.js')(app, logger);
+app.listen(LOGPORT, function () {
+    logger.log('info', 'Logging server started on port '+LOGPORT);
+});
