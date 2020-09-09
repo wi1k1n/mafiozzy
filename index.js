@@ -31,12 +31,18 @@ function getRoomLogger(roomID) {
     let ts = [];
     if (LOGS2FILE) ts.push(new winston.transports.File({ filename: path.join(LOGSDIR, (roomID ? roomID : 'combined')+'.log') }));
     if (!roomID && !NOCONSOLEOUTPUT) ts.push(new winston.transports.Console());
-    const logger = winston.createLogger({
-        level: DEBUG ? 'verbose' : 'info',
-        format: winston.format.combine(
+    let format = winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.simple(),
+    );
+    if (!roomID)
+        format = winston.format.combine(
             winston.format.timestamp(),
             winston.format.json(),
-        ),
+        );
+    const logger = winston.createLogger({
+        level: DEBUG ? 'verbose' : 'info',
+        format: format,
         transports: ts,
     });
     return logger;
