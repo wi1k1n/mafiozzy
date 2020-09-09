@@ -103,7 +103,7 @@
                             title="Move from player list to spectators">Spectate</button>
                     <button type="button" class="btn btn-info btn-sm" id="btn_change_name"
                             title="Click to change displayed name">Change name</button>
-                    <button type="button" class="btn btn-warning btn-sm" id="btn_help"
+                    <button type="button" class="btn btn-warning btn-sm hidden" id="btn_help"
                             title="Click to notify game master you need help">Help me!</button>
                 </p>
             </div>
@@ -521,6 +521,7 @@
                     // Response after 'help' command
                     if (code !== 300) {
                         bootbox.alert('ERROR! Game Master has NOT seen your request!');
+                        $('#btn_actdsntwrk').removeClass('hidden');
                         return serverErrReturnedHandler(msg);
                     }
                     if (bbmsgHelp) {
@@ -668,6 +669,7 @@
                 $('#btn_actdsntwrk').click(function() {
                     sendJSON({cmd: 'hl', uid: userID, reason: $(this).val()});
                     // $(this).parent().text('Waiting for Game Master\'s response...');
+                    $(this).addClass('hidden');
                 });
             });
             function sendJSON(json) {
@@ -1020,9 +1022,11 @@
                 if (myTeam === 'spec') {
                     $('#btn_play').removeAttr('disabled');
                     $('#btn_spectate').attr('disabled', 'disabled');
+                    $('#btn_help').addClass('hidden');
                 } else if (myTeam === 'player') {
                     $('#btn_play').attr('disabled', 'disabled');
                     $('#btn_spectate').removeAttr('disabled');
+                    if (!iamhost) $('#btn_help').removeClass('hidden');
                 }
 
                 // Fill spectators first

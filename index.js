@@ -457,7 +457,7 @@ wss.on('connection', function connection(ws, rq) {
             // Help command. Player asked for help
             if (!(userID in rooms[roomID].players))
                 return sendJSON({cmd: 'hl', code: 301, msg: 'You are not in the room'});
-            if (users[rooms[roomID].host].dc)
+            if (rooms[roomID].players[rooms[roomID].host].dc)
                 return sendJSON({cmd: 'hl', code: 302, msg: 'Host is disconnected. Request is not proceeded'});
 
             sendJSON({cmd: 'ehq', code: 311, puid: userID}, users[rooms[roomID].host]);
