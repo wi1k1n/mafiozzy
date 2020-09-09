@@ -1,5 +1,5 @@
 const argv = require('optimist')
-    .usage('Usage: $0 --port [num] --wss --pwd [str] --logs')
+    .usage('Usage: $0 --port [num] --wss --pwd [str] --debug --logs --noconsoleoutput')
     .argv;
 const crypto = require('crypto');
 const random = require('./util');
@@ -12,6 +12,8 @@ if (argv.wss) websocket = require('./websocketHTTPS');
 else websocket = require('./websocket');
 const webSocket = require('ws');
 
+const DEBUG = !!argv.debug;
+const NOCONSOLEOUTPUT = !!argv.noconsoleoutput;
 const LOGS2FILE = !!argv.logs;
 const MOD_PWD = argv.pwd ? argv.pwd : null;
 const PORT = argv.port ? parseInt(argv.port) : 6001;
@@ -26,10 +28,11 @@ const LOGSDIR = path.join(__dirname, 'logs');
 const TEAMS = ['spec', 'player'];
 
 function getRoomLogger(roomID) {
-    let ts = [new winston.transports.File({ filename: path.join(LOGSDIR, (roomID ? roomID : 'combined')+'.log') })];
-    if (!roomID) ts.push(new winston.transports.Console());
+    let ts = [];
+    if (LOGS2FILE) ts.push(new winston.transports.File({ filename: path.join(LOGSDIR, (roomID ? roomID : 'combined')+'.log') }));
+    if (!roomID && !NOCONSOLEOUTPUT) ts.push(new winston.transports.Console());
     const logger = winston.createLogger({
-        level: LOGS2FILE ? 'verbose' : 'info',
+        level: DEBUG ? 'verbose' : 'info',
         format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json(),
