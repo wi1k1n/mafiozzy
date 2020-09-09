@@ -213,8 +213,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -935,7 +935,7 @@
                 let specs = [];
                 data.players.filter(p => p.team === 'spec').forEach(function(us) {
                     let n = us.name;
-                    if (us.dc) n = '(?) ' + n;
+                    if (iamhost && us.dc) n = '(?) ' + n;
                     if (us.uid === data.host) n = '<u>' + n + '</u>';
                     specs.push($('<span>' + n + '</span>').on('click', e => playerClicked(e, us.uid)));
                 });
@@ -962,7 +962,7 @@
                     txt = '<a class="" id="btn_kill_player_'+up.number+'">' + txt + '</a>';
                     if (userID === up.uid)
                         txt = '<b>' + txt + '</b>';
-                    if (up.dc)
+                    if (iamhost & up.dc)
                         txt = '(?) ' + txt;
                     pRow.html(txt);
                     pList.append(pRow);

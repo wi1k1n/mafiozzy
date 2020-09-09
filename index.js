@@ -17,8 +17,8 @@ const MOD_PWD = argv.pwd ? argv.pwd : null;
 const PORT = argv.port ? parseInt(argv.port) : 6001;
 const LOGPORT = 3000;
 
-const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:6000, std:2.3, min:2000, max:15000};
-const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:7000, std:3, min:3000, max:20000};
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_CHECKS = {mean:10000, std:2.3, min:5000, max:20000};
+const FAKE_NIGHT_RESPONSE_DELAY_PARAMS_ASSASSINATION = {mean:8000, std:3, min:5000, max:25000};
 const USERID_MAXLENGTH = 16;
 const ROOMID_MAXLENGTH = 16;
 const BROWSERINSTANCEID_LENGTH = 4;
