@@ -88,7 +88,7 @@ wss.on('connection', function connection(ws, rq) {
     users[connectionID].ws = ws;
     if (!rooms.hasOwnProperty(roomID)) rooms[roomID] = new Room(roomID, {}, connectionID);
     ws.on('message', function incoming(msgRaw) {
-        logger.verbose('(rx): ' + msgRaw);
+        logger.verbose('['+connectionID+'] (rx): ' + msgRaw);
         let msg = null;
         try {
             msg = JSON.parse(msgRaw);
@@ -223,9 +223,6 @@ wss.on('connection', function connection(ws, rq) {
             if (rooms[roomID].nightActionPerformed)
                 return sendJSON({cmd: 'kl', code: 1092, msg: 'You have already made an assassination this night'});
 
-            if (rooms[roomID].currentTurn === 1 && killed.immunity)
-                return sendJSON({cmd: 'kl', code: 107, msg: 'Player you r killing has immunity for the 1st round.'});
-
             let mbs = Object.keys(rooms[roomID].players).filter(puid => {
                 let cp = rooms[roomID].players[puid];
                 return cp.role === 'MafiaBoss' && cp.status === 'playing';
@@ -250,6 +247,9 @@ wss.on('connection', function connection(ws, rq) {
                     return sendJSON({cmd: 'kl', code: 109, msg: 'There is at least one mafia which is before you'});
                 }
             }
+            if (rooms[roomID].currentTurn === 1 && killed.immunity)
+                return sendJSON({cmd: 'kl', code: 107, msg: 'Player you r killing has immunity for the 1st round.'});
+
             killed.status = 'killed';
             sendJSON({cmd: 'kl', code: 100});
             rooms[roomID].nightActionPerformed = true;
@@ -576,16 +576,12 @@ wss.on('connection', function connection(ws, rq) {
         return obj;
     }
     function sendJSON(json, user) {
-        if (!user) {
-            if (rooms[roomID])
-                rooms[roomID].logger.verbose('['+connectionID+'] << '+JSON.stringify(json));
-        }
-        else
-            if (rooms[roomID]) {
-                rooms[roomID].logger.verbose('['+user.uid+'] << ' + JSON.stringify(json))
-            }
         wsock = user ? user.ws : ws;
-        sendDICT(json, wsock);
+        uid = user ? user.uid : connectionID;
+        if (rooms[roomID]) {
+            rooms[roomID].logger.verbose('[' + uid + '] << ' + JSON.stringify(json))
+        }
+        sendDICT(json, wsock, uid);
     }
 
     function Room(rid, players, host, locked, playing) {
@@ -602,6 +598,19 @@ wss.on('connection', function connection(ws, rq) {
         this.logger = getRoomLogger(rid);
         this.logger.info('########## Room created ##########');
     }
+    Room.prototype.toJSON = function() {
+        return {
+            roomID: this.roomID,
+            tsCreated: this.tsCreated,
+            players: this.players,
+            host: this.host,
+            locked: this.locked,
+            playing: this.playing,
+            nightMode: this.nightMode,
+            nightActionPerformed: this.nightActionPerformed,
+            currentTurn: this.currentTurn,
+        }
+    };
     function User(uid, ws, name) {
         if (!uid) logger.warn('[User] Invalid userID! Something goes wrong!');
         this.uid = uid;
@@ -704,9 +713,9 @@ function validateName(name) {
         && /^[\wа-яё0-9\s-.,!?/\\]+$/i.test(name);
     // return name;
 }
-function sendDICT(dict, wsock) {
+function sendDICT(dict, wsock, connID) {
     dict['timestamp'] = new Date().getTime();
-    logger.verbose('(tx): ' + JSON.stringify(dict));
+    logger.verbose((connID ? ('['+connID+'] ') : '')+'(tx): ' + JSON.stringify(dict));
     wsock.send(JSON.stringify(dict));
 }
 
