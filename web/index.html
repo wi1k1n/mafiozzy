@@ -217,8 +217,8 @@
     $('.inp_role_setup_number').inputSpinner();
     $('.inp_role_setup_number').focus(function(e) {$(this).select();});
     $(document).ready(function() {
-        // const HOST = 'wss://infiny.ddns.net:6001';
-        const HOST = 'ws://localhost:6001';
+        const HOST = 'wss://infiny.ddns.net:6001';
+        // const HOST = 'ws://localhost:6001';
         // const RECONNECT_TIMEOUT = 1000;
         const DEBUG = true;
         const RID_LENGTH = 5;
@@ -1026,7 +1026,8 @@
                 } else if (myTeam === 'player') {
                     $('#btn_play').attr('disabled', 'disabled');
                     $('#btn_spectate').removeAttr('disabled');
-                    if (!iamhost) $('#btn_help').removeClass('hidden');
+                    if (!iamhost && me.status === 'playing') $('#btn_help').removeClass('hidden');
+                    else $('#btn_help').addClass('hidden');
                 }
 
                 // Fill spectators first

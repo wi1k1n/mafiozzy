@@ -80,8 +80,8 @@
         });
         function connect2server(pwd) {
             let DEBUG = true;
-            // const HOST = 'wss://infiny.ddns.net:6001';
-            const HOST = 'ws://localhost:6001';
+            const HOST = 'wss://infiny.ddns.net:6001';
+            // const HOST = 'ws://localhost:6001';
             const OPTIONS = { weekday: 'short', year: '2-digit', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' };
 
             let ws = new WebSocket(HOST, pwd);

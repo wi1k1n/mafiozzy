@@ -459,6 +459,10 @@ wss.on('connection', function connection(ws, rq) {
                 return sendJSON({cmd: 'hl', code: 301, msg: 'You are not in the room'});
             if (rooms[roomID].players[rooms[roomID].host].dc)
                 return sendJSON({cmd: 'hl', code: 302, msg: 'Host is disconnected. Request is not proceeded'});
+            if (rooms[roomID].players[userID].team !== 'player')
+                return sendJSON({cmd: 'hl', code: 303, msg: 'You are not playing ATM.'});
+            if (rooms[roomID].players[userID].status !== 'playing')
+                return sendJSON({cmd: 'hl', code: 104, msg: 'You have already been killed.'});
 
             sendJSON({cmd: 'ehq', code: 311, puid: userID}, users[rooms[roomID].host]);
             sendJSON({cmd: 'hl', code: 300});
